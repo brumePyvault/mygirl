@@ -4,49 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Do You Still Love Me? 💗</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
   <style>
-    :root {
-      --pink: #ff7eb6;
-      --pink-dark: #ff4f9a;
-      --cream: #fff8fc;
-      --lavender: #f6e8ff;
-      --text: #5b355f;
-      --white: #ffffff;
-      --shadow: 0 12px 30px rgba(255, 126, 182, 0.25);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
     body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
       font-family: "Trebuchet MS", "Comic Sans MS", sans-serif;
-      background:
-        radial-gradient(circle at top left, #ffd6ea 0%, transparent 25%),
-        radial-gradient(circle at top right, #e9d5ff 0%, transparent 25%),
-        linear-gradient(135deg, #fff5fb, #f9f0ff, #fff8fd);
-      color: var(--text);
-      overflow: hidden;
-    }
-
-    .hearts {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
       overflow: hidden;
     }
 
     .heart {
       position: absolute;
-      font-size: 20px;
       opacity: 0.16;
       animation: floatUp linear infinite;
+      pointer-events: none;
     }
 
     @keyframes floatUp {
@@ -58,287 +30,189 @@
       }
     }
 
-    .card {
-      position: relative;
-      width: 100%;
-      max-width: 700px;
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(8px);
-      border: 3px solid rgba(255, 126, 182, 0.18);
-      border-radius: 32px;
-      box-shadow: var(--shadow);
-      padding: 40px 26px;
-      text-align: center;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 8px 14px;
-      border-radius: 999px;
-      background: #ffe4f1;
-      color: var(--pink-dark);
-      font-weight: 700;
-      margin-bottom: 16px;
-      letter-spacing: 0.3px;
-    }
-
-    h1 {
-      font-size: clamp(2rem, 4vw, 3.2rem);
-      line-height: 1.1;
-      margin: 0 0 10px;
-    }
-
-    .subtitle {
-      margin: 0 auto 26px;
-      max-width: 520px;
-      font-size: 1.08rem;
-      line-height: 1.6;
-      color: #7a4a7d;
-    }
-
-    .buttons {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 18px;
-      flex-wrap: wrap;
-      min-height: 110px;
-      margin-top: 10px;
-    }
-
-    button {
-      border: none;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: transform 0.25s ease, opacity 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
-      font-weight: 700;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-    }
-
-    #yesBtn {
-      background: linear-gradient(135deg, var(--pink), var(--pink-dark));
-      color: var(--white);
-      padding: 16px 34px;
-      font-size: 1.2rem;
-    }
-
-    #yesBtn:hover,
-    #confirmBtn:hover,
-    #restartBtn:hover {
-      transform: translateY(-2px) scale(1.03);
-    }
-
-    #noBtn {
-      background: #fff;
-      color: #8a5b90;
-      padding: 16px 34px;
-      font-size: 1.2rem;
-      border: 2px solid #ffd0e6;
-    }
-
-    .tiny {
-      transform: scale(0.72);
-    }
-
-    .tinier {
-      transform: scale(0.46);
-    }
-
-    .hidden {
-      opacity: 0;
-      pointer-events: none;
-      transform: scale(0);
-      width: 0;
-      padding: 0;
-      margin: 0;
-      overflow: hidden;
-    }
-
-    .message {
-      margin-top: 24px;
-      min-height: 90px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .panel {
-      background: linear-gradient(135deg, #fff0f7, #fffaff);
-      border: 2px dashed #ffc2df;
-      border-radius: 24px;
-      padding: 18px 20px;
-      max-width: 460px;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.65);
-    }
-
-    .panel p {
-      margin: 0;
-      font-size: 1.04rem;
-      line-height: 1.6;
-    }
-
-    #confirmBtn, #restartBtn {
-      background: linear-gradient(135deg, #ff91c2, #ff5ea8);
-      color: white;
-      padding: 14px 28px;
-      font-size: 1rem;
-    }
-
-    .celebration {
-      display: none;
+    .pop-in {
       animation: popIn 0.5s ease;
     }
 
-    .celebration.show {
-      display: block;
-    }
-
     @keyframes popIn {
-      from { transform: scale(0.8); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-    }
-
-    .big-love {
-      font-size: clamp(2.2rem, 6vw, 4.2rem);
-      margin: 0;
-    }
-
-    .small-note {
-      margin: 10px auto 0;
-      max-width: 500px;
-      color: #8a5b90;
-      font-size: 1rem;
-    }
-
-    .sparkles {
-      font-size: 1.4rem;
-      letter-spacing: 6px;
-      margin-bottom: 10px;
-    }
-
-    @media (max-width: 520px) {
-      .card {
-        padding: 32px 18px;
+      from {
+        transform: scale(0.8);
+        opacity: 0;
       }
-
-      .buttons {
-        flex-direction: column;
-      }
-
-      #yesBtn, #noBtn {
-        width: 100%;
-        max-width: 260px;
+      to {
+        transform: scale(1);
+        opacity: 1;
       }
     }
   </style>
 </head>
-<body>
-  <div class="hearts" id="hearts"></div>
+<body class="min-h-screen flex items-center justify-center p-6 text-purple-900 bg-[linear-gradient(135deg,#fff5fb,#f9f0ff,#fff8fd)]">
+  <div id="hearts" class="fixed inset-0 pointer-events-none overflow-hidden"></div>
 
-  <main class="card">
-    <div class="badge">for my favourite person 💌</div>
-    <h1>Do you still love me? 🥺💗</h1>
-    <p class="subtitle">
+  <main class="relative w-full max-w-2xl rounded-[2rem] border-[3px] border-pink-200/40 bg-white/90 backdrop-blur-md shadow-[0_12px_30px_rgba(255,126,182,0.25)] p-10 md:p-12 text-center">
+    <section class="hidden">
+      <div class="inline-block rounded-full bg-pink-100 px-4 py-2 mb-4 font-bold tracking-wide text-pink-500">
+      for my favourite person 💌
+    </div>
+
+    <h1 class="text-4xl md:text-5xl font-bold leading-tight mb-3">
+      Do you still love me? 🥺💗
+    </h1>
+
+    <p class="mx-auto mb-7 max-w-xl text-base md:text-lg leading-relaxed text-purple-700">
       Be very, very honest... but also remember this page was made with extra love, glitter, and dramatic feelings.
     </p>
 
-    <div class="buttons" id="buttonWrap">
-      <button id="yesBtn">Yes 💖</button>
-      <button id="noBtn">No 🙈</button>
-    </div>
+    <div id="buttonWrap" class="flex flex-wrap justify-center items-center gap-4 min-h-[110px] mt-2">
+      <button
+        id="yesBtn"
+        class="rounded-full px-8 py-4 text-lg font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105 bg-gradient-to-r from-pink-400 to-pink-500"
+      >
+        Yes 💖
+      </button>
 
-    <section class="message" id="messageBox"></section>
+      <button
+        id="noBtn"
+        class="rounded-full px-8 py-4 text-lg font-bold text-purple-700 border-2 border-pink-200 bg-white shadow-lg transition duration-300"
+      >
+        No 🙈
+      </button>
+    </div>
+    </section>
+    
+
+    <section id="messageBox" class="mt-6 min-h-[90px] flex flex-col justify-center items-center gap-4"></section>
   </main>
 
   <script>
-    const noBtn = document.getElementById('noBtn');
-    const yesBtn = document.getElementById('yesBtn');
-    const messageBox = document.getElementById('messageBox');
-    const hearts = document.getElementById('hearts');
+    $(function () {
+      let noClicks = 0;
 
-    let noClicks = 0;
+      function spawnBackgroundHearts() {
+        const icons = ['💗', '💖', '💕', '💘', '✨'];
 
-    function spawnBackgroundHearts() {
-      const icons = ['💗','💖','💕','💘','✨'];
-      for (let i = 0; i < 24; i++) {
-        const heart = document.createElement('div');
-        heart.className = 'heart';
-        heart.textContent = icons[Math.floor(Math.random() * icons.length)];
-        heart.style.left = Math.random() * 100 + 'vw';
-        heart.style.animationDuration = (8 + Math.random() * 10) + 's';
-        heart.style.animationDelay = (Math.random() * 8) + 's';
-        heart.style.fontSize = (16 + Math.random() * 18) + 'px';
-        hearts.appendChild(heart);
+        for (let i = 0; i < 24; i++) {
+          const icon = icons[Math.floor(Math.random() * icons.length)];
+          const left = Math.random() * 100;
+          const duration = 8 + Math.random() * 10;
+          const delay = Math.random() * 8;
+          const size = 16 + Math.random() * 18;
+
+          $('#hearts').append(`
+            <div
+              class="heart"
+              style="
+                left: ${left}vw;
+                font-size: ${size}px;
+                animation-duration: ${duration}s;
+                animation-delay: ${delay}s;
+              "
+            >
+              ${icon}
+            </div>
+          `);
+        }
       }
-    }
 
-    function burstLove() {
-      const icons = ['💖', '💘', '💕', '💗', '✨', '🌸'];
-      for (let i = 0; i < 28; i++) {
-        const piece = document.createElement('div');
-        piece.textContent = icons[Math.floor(Math.random() * icons.length)];
-        piece.style.position = 'fixed';
-        piece.style.left = Math.random() * 100 + 'vw';
-        piece.style.top = '-10vh';
-        piece.style.fontSize = (18 + Math.random() * 22) + 'px';
-        piece.style.pointerEvents = 'none';
-        piece.style.zIndex = '999';
-        piece.style.transition = 'transform 2.4s linear, opacity 2.4s ease';
-        document.body.appendChild(piece);
+      function burstLove() {
+        const icons = ['💖', '💘', '💕', '💗', '✨', '🌸'];
 
-        requestAnimationFrame(() => {
-          piece.style.transform = `translateY(${110 + Math.random() * 20}vh) rotate(${Math.random() * 720 - 360}deg)`;
-          piece.style.opacity = '0';
-        });
+        for (let i = 0; i < 28; i++) {
+          const icon = icons[Math.floor(Math.random() * icons.length)];
+          const left = Math.random() * 100;
+          const size = 18 + Math.random() * 22;
+          const rotate = Math.random() * 720 - 360;
+          const fallDistance = 110 + Math.random() * 20;
 
-        setTimeout(() => piece.remove(), 2500);
+          const $piece = $(`
+            <div style="
+              position: fixed;
+              left: ${left}vw;
+              top: -10vh;
+              font-size: ${size}px;
+              pointer-events: none;
+              z-index: 999;
+              transition: transform 2.4s linear, opacity 2.4s ease;
+            ">
+              ${icon}
+            </div>
+          `);
+
+          $('body').append($piece);
+
+          requestAnimationFrame(() => {
+            $piece.css({
+              transform: `translateY(${fallDistance}vh) rotate(${rotate}deg)`,
+              opacity: '0'
+            });
+          });
+
+          setTimeout(() => {
+            $piece.remove();
+          }, 2500);
+        }
       }
-    }
 
-    noBtn.addEventListener('click', () => {
-      noClicks += 1;
+      $('#noBtn').on('click', function () {
+        noClicks += 1;
 
-      if (noClicks === 1) {
-        noBtn.classList.add('tiny');
-        noBtn.textContent = 'No... really? bfr 🥺';
-      } else if (noClicks === 2) {
-        noBtn.classList.remove('tiny');
-        noBtn.classList.add('tinier');
-        noBtn.textContent = 'Still no? 😭';
-      } else if (noClicks >= 3) {
-        noBtn.classList.add('hidden');
-        yesBtn.textContent = 'Yes or Yes 💞';
-      }
-    });
-
-    yesBtn.addEventListener('click', () => {
-      messageBox.innerHTML = `
-        <div class="panel">
-          <p><strong>Final answer check!</strong> <br>Confirm right here on the website that you still love me forever and ever?</p>
-        </div>
-        <button id="confirmBtn">Confirm</button>
-      `;
-
-      const confirmBtn = document.getElementById('confirmBtn');
-      confirmBtn.addEventListener('click', () => {
-        burstLove();
-        messageBox.innerHTML = `
-          <div class="celebration show">
-            <div class="sparkles">✨ 💖 ✨</div>
-            <h2 class="big-love">cupcakes!!! You said YES! </h2>
-            <p class="small-note">Officially the cutest answer ever. You are stuck with me and all my love now blehhhh</p>
-            <button id="restartBtn">Play Again ♡</button>
-          </div>
-        `;
-
-        const restartBtn = document.getElementById('restartBtn');
-        restartBtn.addEventListener('click', () => location.reload());
+        if (noClicks === 1) {
+          $(this)
+            .css('transform', 'scale(0.72)')
+            .text('No... really? bfr 🥺');
+        } else if (noClicks === 2) {
+          $(this)
+            .css('transform', 'scale(0.46)')
+            .text('Still no? 😭');
+        } else if (noClicks >= 3) {
+          $(this).addClass('hidden');
+          $('#yesBtn').text('Yes or Yes 💞');
+        }
       });
-    });
 
-    spawnBackgroundHearts();
+      $('#yesBtn').on('click', function () {
+        $('#messageBox').html(`
+          <div class="max-w-md rounded-3xl border-2 border-dashed border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50 p-5 shadow-inner">
+            <p class="text-[1.04rem] leading-relaxed text-purple-800">
+              <strong>Final answer check!</strong><br>
+              Confirm right here on the website that you still love me forever and ever?
+            </p>
+          </div>
+          <button
+            id="confirmBtn"
+            class="rounded-full bg-gradient-to-r from-pink-300 to-pink-500 px-7 py-3 text-base font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105"
+          >
+            Confirm
+          </button>
+        `);
+      });
+
+      $(document).on('click', '#confirmBtn', function () {
+        burstLove();
+
+        $('#messageBox').html(`
+          <div class="pop-in">
+            <div class="mb-3 text-2xl tracking-[0.35em]">✨ 💖 ✨</div>
+            <h2 class="text-4xl md:text-6xl font-bold mb-3">cupcakes!!! You said YES!</h2>
+            <p class="mx-auto max-w-lg text-base text-purple-700">
+              Officially the cutest answer ever. You are stuck with me and all my love now blehhhh
+            </p>
+            <button
+              id="restartBtn"
+              class="mt-5 rounded-full bg-gradient-to-r from-pink-300 to-pink-500 px-7 py-3 text-base font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105"
+            >
+              Play Again ♡
+            </button>
+          </div>
+        `);
+      });
+
+      $(document).on('click', '#restartBtn', function () {
+        location.reload();
+      });
+
+      spawnBackgroundHearts();
+    });
   </script>
 </body>
 </html>
