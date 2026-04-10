@@ -11,7 +11,7 @@
   <style>
     body {
       font-family: "Trebuchet MS", "Comic Sans MS", sans-serif;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
     .heart {
@@ -36,7 +36,7 @@
 
     @keyframes popIn {
       from {
-        transform: scale(0.8);
+        transform: scale(0.85);
         opacity: 0;
       }
       to {
@@ -44,44 +44,49 @@
         opacity: 1;
       }
     }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-6 text-purple-900 bg-[linear-gradient(135deg,#fff5fb,#f9f0ff,#fff8fd)]">
+<body class="min-h-screen flex items-center justify-center px-4 py-6 sm:px-6 sm:py-8 text-purple-900 bg-gradient-to-br from-pink-50 via-purple-50 to-rose-50">
   <div id="hearts" class="fixed inset-0 pointer-events-none overflow-hidden"></div>
 
-  <main class="relative w-full max-w-2xl rounded-[2rem] border-[3px] border-pink-200/40 bg-white/90 backdrop-blur-md shadow-[0_12px_30px_rgba(255,126,182,0.25)] p-10 md:p-12 text-center">
+  <main class="glass-card relative w-full max-w-2xl rounded-[28px] sm:rounded-[34px] border border-pink-200/60 shadow-[0_12px_30px_rgba(255,126,182,0.20)] px-5 py-7 sm:px-8 sm:py-10 md:px-12 md:py-12 text-center">
     <section class="w-full text-center" id="firstQuestion">
-      <div class="inline-block rounded-full bg-pink-100 px-4 py-2 mb-4 font-bold tracking-wide text-pink-500">
-      For my best friend and my orente
-    </div>
+      <div class="inline-block rounded-full bg-pink-100 px-4 py-2 mb-4 text-sm sm:text-base font-bold tracking-wide text-pink-500 shadow-sm">
+        For my best friend and my orente
+      </div>
 
-    <h1 class="text-4xl md:text-5xl font-bold leading-tight mb-3">
-      Do you still love me? orente
-    </h1>
+      <h1 class="text-[2rem] leading-tight sm:text-5xl font-bold mb-3 sm:mb-4">
+        Do you still love me, orente? 💗
+      </h1>
 
-    <p class="mx-auto mb-7 max-w-xl text-base md:text-lg leading-relaxed text-purple-700">
-      Before you answer remember this page was made with extra love, glitter, and dramatic feelings. This is just a reminder i would do anything for you.
-    </p>
+      <p class="mx-auto mb-7 max-w-xl text-[15px] leading-7 sm:text-lg sm:leading-relaxed text-purple-700 px-1">
+        Before you answer, remember this page was made with extra love, glitter, and dramatic feelings. This is just a reminder that I would do anything for you.
+      </p>
 
-    <div id="buttonWrap" class="flex flex-wrap justify-center items-center gap-4 min-h-[110px] mt-2">
-      <button
-        id="yesBtn"
-        class="rounded-full px-8 py-4 text-lg font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105 bg-gradient-to-r from-pink-400 to-pink-500"
-      >
-        Yes 💖
-      </button>
+      <div id="buttonWrap" class="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-4 min-h-[120px] mt-2">
+        <button
+          id="yesBtn"
+          class="w-full sm:w-auto rounded-full px-8 py-4 text-base sm:text-lg font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105 bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500"
+        >
+          Yes 💖
+        </button>
 
-      <button
-        id="noBtn"
-        class="rounded-full px-8 py-4 text-lg font-bold text-purple-700 border-2 border-pink-200 bg-white shadow-lg transition duration-300"
-      >
-        No 🙈
-      </button>
-    </div>
+        <button
+          id="noBtn"
+          class="w-full sm:w-auto rounded-full px-8 py-4 text-base sm:text-lg font-bold text-purple-700 border-2 border-pink-200 bg-white shadow-lg transition duration-300"
+        >
+          No 🙈
+        </button>
+      </div>
     </section>
-    
 
-    <section id="messageBox" class="mt-6 min-h-[90px] flex flex-col justify-center items-center gap-4"></section>
+    <section id="messageBox" class="mt-6 min-h-[100px] flex flex-col justify-center items-center gap-4"></section>
   </main>
 
   <script>
@@ -89,14 +94,14 @@
       let noClicks = 0;
 
       function spawnBackgroundHearts() {
-        const icons = ['💗', '💖', '💕', '💘', '✨'];
+        const icons = ['💗', '💖', '💕', '💘', '✨', '🌸'];
 
         for (let i = 0; i < 24; i++) {
           const icon = icons[Math.floor(Math.random() * icons.length)];
           const left = Math.random() * 100;
           const duration = 8 + Math.random() * 10;
           const delay = Math.random() * 8;
-          const size = 16 + Math.random() * 18;
+          const size = 14 + Math.random() * 16;
 
           $('#hearts').append(`
             <div
@@ -120,7 +125,7 @@
         for (let i = 0; i < 28; i++) {
           const icon = icons[Math.floor(Math.random() * icons.length)];
           const left = Math.random() * 100;
-          const size = 18 + Math.random() * 22;
+          const size = 18 + Math.random() * 18;
           const rotate = Math.random() * 720 - 360;
           const fallDistance = 110 + Math.random() * 20;
 
@@ -158,11 +163,11 @@
 
         if (noClicks === 1) {
           $(this)
-            .css('transform', 'scale(0.72)')
-            .text('No... really? bfr 🥺');
+            .css('transform', 'scale(0.78)')
+            .text('No... really? 🥺');
         } else if (noClicks === 2) {
           $(this)
-            .css('transform', 'scale(0.46)')
+            .css('transform', 'scale(0.52)')
             .text('Still no? 😭');
         } else if (noClicks >= 3) {
           $(this).addClass('hidden');
@@ -171,19 +176,19 @@
       });
 
       $('#yesBtn').on('click', function () {
-        $('#firstQuestion').addClass('hidden')
+        $('#firstQuestion').addClass('hidden');
         $('#messageBox').html(`
-          <div class="max-w-md rounded-3xl border-2 border-dashed border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50 p-5 shadow-inner">
-            <p class="text-[1.04rem] leading-relaxed text-purple-800">
+          <div class="w-full max-w-md rounded-[24px] border-2 border-dashed border-pink-200 bg-gradient-to-br from-pink-50 via-white to-purple-50 p-5 sm:p-6 shadow-inner">
+            <p class="text-base sm:text-[1.08rem] leading-7 text-purple-800">
               <strong>Final answer check!</strong><br>
               Confirm right here on the website that you still love me forever and ever?
             </p>
           </div>
           <button
             id="confirmBtn"
-            class="rounded-full bg-gradient-to-r from-pink-300 to-pink-500 px-7 py-3 text-base font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105"
+            class="w-full sm:w-auto rounded-full bg-gradient-to-r from-pink-300 via-rose-400 to-pink-500 px-8 py-4 text-base sm:text-lg font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105"
           >
-            Confirm
+            Confirm 💌
           </button>
         `);
       });
@@ -192,15 +197,17 @@
         burstLove();
 
         $('#messageBox').html(`
-          <div class="pop-in">
-            <div class="mb-3 text-2xl tracking-[0.35em]">✨ 💖 ✨</div>
-            <h2 class="text-4xl md:text-6xl font-bold mb-3">cupcakes!!! You said YES!</h2>
-            <p class="mx-auto max-w-lg text-base text-purple-700">
-              Officially the cutest answer ever. You are stuck with me and all my love now blehhhh
+          <div class="pop-in w-full">
+            <div class="mb-3 text-xl sm:text-2xl tracking-[0.25em] sm:tracking-[0.35em]">✨ 💖 ✨</div>
+            <h2 class="text-3xl leading-tight sm:text-5xl md:text-6xl font-bold mb-3 text-pink-500">
+              Cupcakes!!! You said YES! 🎀
+            </h2>
+            <p class="mx-auto max-w-lg text-[15px] leading-7 sm:text-base text-purple-700 px-2">
+              Officially the cutest answer ever. You are stuck with me and all my love now, blehhhh 💞
             </p>
             <button
               id="restartBtn"
-              class="mt-5 rounded-full bg-gradient-to-r from-pink-300 to-pink-500 px-7 py-3 text-base font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105"
+              class="mt-5 w-full sm:w-auto rounded-full bg-gradient-to-r from-pink-300 via-rose-400 to-pink-500 px-8 py-4 text-base sm:text-lg font-bold text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:scale-105"
             >
               Play Again ♡
             </button>
