@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { ArrowRight, Gamepad2, Heart, Home, Mail, RotateCcw, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import Peer from 'peerjs'
+import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, RotateCcw, Sparkles, Users } from 'lucide-react'
 
 const suits = [
   { symbol: '♠', name: 'spades', color: 'black' }, { symbol: '♥', name: 'hearts', color: 'red' },
@@ -12,6 +13,18 @@ const ranks = [
 ]
 
 const drawCard = () => ({ ...ranks[Math.floor(Math.random() * ranks.length)], ...suits[Math.floor(Math.random() * suits.length)] })
+const newGame = () => ({ score: { you: 0, deborah: 0 }, bet: 5, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, message: 'Choose the stake, then reveal the cards.' })
+
+function updateGame(game, action) {
+  if (action.type === 'BET') return { ...game, bet: Math.max(1, game.bet + action.amount) }
+  if (action.type === 'RESET') return { ...newGame(), message: 'Score cleared. Fresh start!' }
+  if (action.type !== 'PLAY') return game
+  if (game.revealed) return { ...game, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, message: 'Choose the stake, then reveal the cards.' }
+  const difference = game.cards.you.value - game.cards.deborah.value
+  if (!difference) return { ...game, revealed: true, message: "It's a tie — nobody owes a thing!" }
+  const winner = difference > 0 ? 'you' : 'deborah'
+  return { ...game, revealed: true, score: { ...game.score, [winner]: game.score[winner] + game.bet }, message: difference > 0 ? `You win ₦${game.bet.toLocaleString()} this round!` : `Deborah wins ₦${game.bet.toLocaleString()} this round!` }
+}
 
 function Nav({ page, setPage }) {
   return <header className="nav-wrap"><nav className="nav shell" aria-label="Main navigation">
@@ -57,32 +70,85 @@ function PlayingCard({ card, hidden, label }) {
 }
 
 function GamesPage() {
-  const [score, setScore] = useState(() => JSON.parse(localStorage.getItem('deborah-score') || '{"you":0,"deborah":0}'))
-  const [bet, setBet] = useState(5)
-  const [cards, setCards] = useState({ you: drawCard(), deborah: drawCard() })
-  const [revealed, setRevealed] = useState(false)
-  const [message, setMessage] = useState('Choose the stake, then reveal the cards.')
-  useEffect(() => localStorage.setItem('deborah-score', JSON.stringify(score)), [score])
-  const play = () => {
-    if (revealed) { setCards({ you: drawCard(), deborah: drawCard() }); setRevealed(false); setMessage('Choose the stake, then reveal the cards.'); return }
-    setRevealed(true)
-    const difference = cards.you.value - cards.deborah.value
-    if (!difference) return setMessage("It's a tie — nobody owes a thing!")
-    const winner = difference > 0 ? 'you' : 'deborah'
-    setScore(current => ({ ...current, [winner]: current[winner] + bet }))
-    setMessage(difference > 0 ? `You win ₦${bet.toLocaleString()} this round!` : `Deborah wins ₦${bet.toLocaleString()} this round!`)
+  const [game, setGame] = useState(() => {
+    const saved = localStorage.getItem('deborah-game')
+    return saved ? JSON.parse(saved) : newGame()
+  })
+  const [online, setOnline] = useState({ role: 'local', status: 'offline', code: '', error: '' })
+  const [joinCode, setJoinCode] = useState('')
+  const [copied, setCopied] = useState(false)
+  const peerRef = useRef(null)
+  const connectionRef = useRef(null)
+  const gameRef = useRef(game)
+
+  useEffect(() => { gameRef.current = game; localStorage.setItem('deborah-game', JSON.stringify(game)) }, [game])
+  useEffect(() => () => peerRef.current?.destroy(), [])
+
+  const attachConnection = (connection, role) => {
+    connectionRef.current = connection
+    connection.on('open', () => {
+      setOnline(current => ({ ...current, role, status: 'connected', error: '' }))
+      if (role === 'host') connection.send({ type: 'STATE', game: gameRef.current })
+    })
+    connection.on('data', data => {
+      if (data.type === 'STATE') setGame(data.game)
+      if (data.type === 'ACTION' && role === 'host') {
+        const next = updateGame(gameRef.current, data.action)
+        gameRef.current = next
+        setGame(next)
+        connection.send({ type: 'STATE', game: next })
+      }
+    })
+    connection.on('close', () => setOnline(current => ({ ...current, status: 'disconnected', error: 'The other player left the room.' })))
+    connection.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'The connection was interrupted. Try joining again.' })))
   }
-  const reset = () => { setScore({ you: 0, deborah: 0 }); setMessage('Score cleared. Fresh start!') }
+
+  const hostGame = () => {
+    peerRef.current?.destroy()
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase()
+    const peer = new Peer(`deborah-${code.toLowerCase()}`)
+    peerRef.current = peer
+    setOnline({ role: 'host', status: 'waiting', code, error: '' })
+    peer.on('connection', connection => attachConnection(connection, 'host'))
+    peer.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'Could not create the room. Please try again.' })))
+  }
+
+  const joinGame = () => {
+    const code = joinCode.trim().replace(/[^a-z0-9]/gi, '').toUpperCase()
+    if (!code) return
+    peerRef.current?.destroy()
+    const peer = new Peer()
+    peerRef.current = peer
+    setOnline({ role: 'guest', status: 'connecting', code, error: '' })
+    peer.on('open', () => attachConnection(peer.connect(`deborah-${code.toLowerCase()}`, { reliable: true }), 'guest'))
+    peer.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'Room not found. Check the code and try again.' })))
+  }
+
+  const dispatch = action => {
+    if (online.role === 'guest' && online.status === 'connected') return connectionRef.current?.send({ type: 'ACTION', action })
+    const next = updateGame(gameRef.current, action)
+    gameRef.current = next
+    setGame(next)
+    if (online.role === 'host' && online.status === 'connected') connectionRef.current?.send({ type: 'STATE', game: next })
+  }
+
+  const leaveRoom = () => { peerRef.current?.destroy(); peerRef.current = null; connectionRef.current = null; setOnline({ role: 'local', status: 'offline', code: '', error: '' }) }
+  const { score, bet, cards, revealed, message } = game
   const balance = score.you - score.deborah
   return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw. Highest card wins. Ace is high.</p></div>
+    <section className="online-panel">
+      <div className="online-intro"><span><Users size={18}/> PLAY ON TWO DEVICES</span><p>Start a private room and share the six-character code, or join Deborah's room.</p></div>
+      {online.role === 'local' ? <div className="room-actions"><button className="host-button" onClick={hostGame}><Link2 size={16}/> Start a room</button><span>or</span><div className="join-control"><input aria-label="Room code" value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())} onKeyDown={event => event.key === 'Enter' && joinGame()} placeholder="ROOM CODE" maxLength={6}/><button onClick={joinGame}>Join</button></div></div> : <div className="room-status"><div><small>{online.status === 'connected' ? 'CONNECTED — GAME IS LIVE' : online.status === 'waiting' ? 'WAITING FOR DEBORAH' : online.status.toUpperCase()}</small><strong>{online.code}</strong></div>{online.status === 'waiting' && <button className="copy-code" onClick={() => { navigator.clipboard.writeText(online.code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy code'}</button>}<button className="leave" onClick={leaveRoom}>Leave room</button></div>}
+      {online.error && <p className="connection-error">{online.error}</p>}
+    </section>
     <section className="game-board">
       <div className="scorebar"><div><small>YOU'VE WON</small><strong>₦{score.you.toLocaleString()}</strong></div><span className="heart-chip">♥</span><div><small>DEBORAH'S WON</small><strong>₦{score.deborah.toLocaleString()}</strong></div></div>
       <div className="table"><div className="player"><span>YOU</span><PlayingCard card={cards.you} hidden={!revealed} label="Your"/></div><div className="versus">VS</div><div className="player"><span>DEBORAH</span><PlayingCard card={cards.deborah} hidden={!revealed} label="Deborah's"/></div></div>
       <div className={`result ${revealed ? 'show' : ''}`}>{message}</div>
-      <div className="controls"><div className="bet"><label htmlFor="bet">Stake this round</label><div><button onClick={() => setBet(Math.max(1, bet - 5))}>−</button><span>₦{bet.toLocaleString()}</span><button onClick={() => setBet(bet + 5)}>+</button></div></div><button className="primary deal" onClick={play}>{revealed ? 'Deal again' : 'Reveal cards'} <Sparkles size={17}/></button></div>
+      <div className="controls"><div className="bet"><label htmlFor="bet">Stake this round</label><div><button onClick={() => dispatch({ type: 'BET', amount: -5 })}>−</button><span>₦{bet.toLocaleString()}</span><button onClick={() => dispatch({ type: 'BET', amount: 5 })}>+</button></div></div><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>{revealed ? 'Deal again' : 'Reveal cards'} <Sparkles size={17}/></button></div>
     </section>
-    <div className="balance"><div><span>RUNNING BALANCE</span><strong>{balance === 0 ? 'All square' : balance > 0 ? `Deborah owes you ₦${balance.toLocaleString()}` : `You owe Deborah ₦${Math.abs(balance).toLocaleString()}`}</strong></div><button onClick={reset}><RotateCcw size={15}/> Reset score</button></div>
-    <p className="local-note">Game progress is saved on this device. Perfect for passing the phone back and forth.</p>
+    <div className="balance"><div><span>RUNNING BALANCE</span><strong>{balance === 0 ? 'All square' : balance > 0 ? `Deborah owes you ₦${balance.toLocaleString()}` : `You owe Deborah ₦${Math.abs(balance).toLocaleString()}`}</strong></div><button onClick={() => dispatch({ type: 'RESET' })}><RotateCcw size={15}/> Reset score</button></div>
+    <p className="local-note">{online.status === 'connected' ? 'Both devices are synchronized live. Either player can deal or change the stake.' : 'Play locally, or start a private room to synchronize two devices — no account required.'}</p>
   </main>
 }
 
