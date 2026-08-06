@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import Peer from 'peerjs'
 import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, RotateCcw, Sparkles, Users } from 'lucide-react'
 
@@ -14,6 +14,53 @@ const ranks = [
 
 const drawCard = () => ({ ...ranks[Math.floor(Math.random() * ranks.length)], ...suits[Math.floor(Math.random() * suits.length)] })
 const newGame = () => ({ score: { you: 0, deborah: 0 }, bet: 5, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, message: 'Choose the stake, then reveal the cards.' })
+
+const storage = {
+  get(key) {
+    try { return window.localStorage.getItem(key) }
+    catch { return null }
+  },
+  set(key, value) {
+    try { window.localStorage.setItem(key, value) }
+    catch { /* The app still works when storage is unavailable. */ }
+  },
+  remove(key) {
+    try { window.localStorage.removeItem(key) }
+    catch { /* Nothing to clear when storage is unavailable. */ }
+  },
+}
+
+function loadGame() {
+  const saved = storage.get('deborah-game')
+  if (!saved) return newGame()
+
+  try {
+    const game = JSON.parse(saved)
+    const validCard = card => card && typeof card.value === 'number' && typeof card.label === 'string'
+    const validScore = game?.score && Number.isFinite(game.score.you) && Number.isFinite(game.score.deborah)
+    if (!validScore || !Number.isFinite(game.bet) || !validCard(game.cards?.you) || !validCard(game.cards?.deborah)) throw new Error('Invalid saved game')
+    return game
+  } catch {
+    storage.remove('deborah-game')
+    return newGame()
+  }
+}
+
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { crashed: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { crashed: true }
+  }
+
+  render() {
+    if (!this.state.crashed) return this.props.children
+    return <main className="crash-page"><div><Heart size={34} fill="currentColor"/><h1>Let’s try that again.</h1><p>Something unexpected happened, but your little corner is still here.</p><button className="primary" onClick={() => { storage.remove('deborah-game'); window.location.reload() }}>Restart the app</button></div></main>
+  }
+}
 
 function updateGame(game, action) {
   if (action.type === 'BET') return { ...game, bet: Math.max(1, game.bet + action.amount) }
@@ -38,9 +85,9 @@ function Nav({ page, setPage }) {
 }
 
 function HomePage({ setPage }) {
-  const [note, setNote] = useState(() => localStorage.getItem('deborah-note') || '')
+  const [note, setNote] = useState(() => storage.get('deborah-note') || '')
   const [saved, setSaved] = useState(false)
-  const saveNote = () => { localStorage.setItem('deborah-note', note); setSaved(true); setTimeout(() => setSaved(false), 1800) }
+  const saveNote = () => { storage.set('deborah-note', note); setSaved(true); setTimeout(() => setSaved(false), 1800) }
   return <main>
     <section className="hero shell">
       <div className="hero-copy">
@@ -70,10 +117,7 @@ function PlayingCard({ card, hidden, label }) {
 }
 
 function GamesPage() {
-  const [game, setGame] = useState(() => {
-    const saved = localStorage.getItem('deborah-game')
-    return saved ? JSON.parse(saved) : newGame()
-  })
+  const [game, setGame] = useState(loadGame)
   const [online, setOnline] = useState({ role: 'local', status: 'offline', code: '', error: '' })
   const [joinCode, setJoinCode] = useState('')
   const [copied, setCopied] = useState(false)
@@ -81,7 +125,7 @@ function GamesPage() {
   const connectionRef = useRef(null)
   const gameRef = useRef(game)
 
-  useEffect(() => { gameRef.current = game; localStorage.setItem('deborah-game', JSON.stringify(game)) }, [game])
+  useEffect(() => { gameRef.current = game; storage.set('deborah-game', JSON.stringify(game)) }, [game])
   useEffect(() => () => peerRef.current?.destroy(), [])
 
   const attachConnection = (connection, role) => {
@@ -154,5 +198,5 @@ function GamesPage() {
 
 export default function App() {
   const [page, setPage] = useState('home')
-  return <><Nav page={page} setPage={setPage}/>{page === 'home' ? <HomePage setPage={setPage}/> : <GamesPage/>}<footer><div className="shell">Made for Deborah <span>♥</span><small>One little website. A whole lot of love.</small></div></footer></>
+  return <AppErrorBoundary><Nav page={page} setPage={setPage}/>{page === 'home' ? <HomePage setPage={setPage}/> : <GamesPage/>}<footer><div className="shell">Made for Deborah <span>♥</span><small>One little website. A whole lot of love.</small></div></footer></AppErrorBoundary>
 }
