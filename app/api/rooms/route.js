@@ -22,18 +22,25 @@ function updateGame(game, action) {
   if (action.type === 'PLAY' && game.phase === 'complete') return action.game
   if (game.phase !== 'betting' || action.actor !== game.turn) return game
   const otherPlayer = action.actor === 'deborah' ? 'you' : 'deborah'
+  const committed = game.committed || { you: game.bet, deborah: game.bet }
   if (action.type === 'RAISE') {
     if (game.bet >= 10000000) return game
     const amount = Math.max(1, Math.min(10000000 - game.bet, Math.round(Number(action.amount) || 1)))
     const bet = game.bet + amount
-    return { ...game, bet, turn: otherPlayer, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} adds ₦${amount.toLocaleString()}. The stake is now ₦${bet.toLocaleString()}.` }
+    const match = Math.max(0, game.bet - committed[action.actor])
+    return { ...game, bet, committed: { ...committed, [action.actor]: bet }, turn: otherPlayer, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} matches ₦${match.toLocaleString()} and adds ₦${amount.toLocaleString()}. The stake is now ₦${bet.toLocaleString()} each to continue.` }
   }
-  if (action.type === 'FOLD') return { ...game, phase: 'complete', score: { ...game.score, [otherPlayer]: game.score[otherPlayer] + game.bet }, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} folds. ${otherPlayer === 'deborah' ? 'Deborah' : 'Brume'} wins ₦${game.bet.toLocaleString()} without showing the cards.` }
+  if (action.type === 'FOLD') {
+    const loss = committed[action.actor]
+    return { ...game, phase: 'complete', score: { ...game.score, [otherPlayer]: game.score[otherPlayer] + loss }, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} folds and loses only the ₦${loss.toLocaleString()} already committed. ${otherPlayer === 'deborah' ? 'Deborah' : 'Brume'}'s unmatched raise is not charged.` }
+  }
   if (action.type !== 'ACCEPT') return game
+  const matched = { ...committed, [action.actor]: game.bet }
   const difference = game.cards.you.value - game.cards.deborah.value
-  if (!difference) return { ...game, phase: 'complete', revealed: true, message: "Stake accepted. It's a tie — nobody owes a thing!" }
+  if (!difference) return { ...game, committed: matched, phase: 'complete', revealed: true, message: "Stake accepted. It's a tie — nobody owes a thing!" }
   const winner = difference > 0 ? 'you' : 'deborah'
-  return { ...game, phase: 'complete', revealed: true, score: { ...game.score, [winner]: game.score[winner] + game.bet }, message: difference > 0 ? `Stake accepted. Brume wins ₦${game.bet.toLocaleString()}!` : `Stake accepted. Deborah wins ₦${game.bet.toLocaleString()}!` }
+  const loser = winner === 'you' ? 'deborah' : 'you'
+  return { ...game, committed: matched, phase: 'complete', revealed: true, score: { ...game.score, [winner]: game.score[winner] + matched[loser] }, message: difference > 0 ? `Stake accepted. Brume wins ₦${matched[loser].toLocaleString()}!` : `Stake accepted. Deborah wins ₦${matched[loser].toLocaleString()}!` }
 }
 
 const response = (body, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })

@@ -15,7 +15,7 @@ const ranks = [
 
 const drawCard = () => ({ ...ranks[Math.floor(Math.random() * ranks.length)], ...suits[Math.floor(Math.random() * suits.length)] })
 const INITIAL_STAKE = 100
-const newRound = score => ({ score, bet: INITIAL_STAKE, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, phase: 'betting', turn: 'deborah', message: 'The opening stake is ₦100. Bluff, raise, accept, or fold.' })
+const newRound = score => ({ score, bet: INITIAL_STAKE, committed: { you: INITIAL_STAKE, deborah: INITIAL_STAKE }, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, phase: 'betting', turn: 'deborah', message: 'The opening stake is ₦100 each. Bluff, raise, accept, or fold.' })
 const newGame = () => newRound({ you: 0, deborah: 0 })
 
 const storage = {
@@ -42,7 +42,9 @@ function loadGame() {
     const validCard = card => card && typeof card.value === 'number' && typeof card.label === 'string'
     const validScore = game?.score && Number.isFinite(game.score.you) && Number.isFinite(game.score.deborah)
     if (!validScore || !Number.isFinite(game.bet) || !validCard(game.cards?.you) || !validCard(game.cards?.deborah)) throw new Error('Invalid saved game')
-    return { ...game, bet: game.phase ? game.bet : INITIAL_STAKE, phase: game.phase || (game.revealed ? 'complete' : 'betting'), turn: game.turn || 'deborah' }
+    const bet = game.phase ? game.bet : INITIAL_STAKE
+    const committed = game.committed && Number.isFinite(game.committed.you) && Number.isFinite(game.committed.deborah) ? game.committed : { you: bet, deborah: bet }
+    return { ...game, bet, committed, phase: game.phase || (game.revealed ? 'complete' : 'betting'), turn: game.turn || 'deborah' }
   } catch {
     storage.remove('deborah-game')
     return newGame()
@@ -70,20 +72,25 @@ function updateGame(game, action) {
   if (action.type === 'PLAY' && game.phase === 'complete') return newRound(game.score)
   if (game.phase !== 'betting' || action.actor !== game.turn) return game
   const otherPlayer = action.actor === 'deborah' ? 'you' : 'deborah'
+  const committed = game.committed || { you: game.bet, deborah: game.bet }
   if (action.type === 'RAISE') {
     if (game.bet >= 10000000) return game
     const amount = Math.max(1, Math.min(10000000 - game.bet, Math.round(Number(action.amount) || 1)))
     const bet = game.bet + amount
-    return { ...game, bet, turn: otherPlayer, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} adds ₦${amount.toLocaleString()}. The stake is now ₦${bet.toLocaleString()}.` }
+    const match = Math.max(0, game.bet - committed[action.actor])
+    return { ...game, bet, committed: { ...committed, [action.actor]: bet }, turn: otherPlayer, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} matches ₦${match.toLocaleString()} and adds ₦${amount.toLocaleString()}. The stake is now ₦${bet.toLocaleString()} each to continue.` }
   }
   if (action.type === 'FOLD') {
-    return { ...game, phase: 'complete', score: { ...game.score, [otherPlayer]: game.score[otherPlayer] + game.bet }, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} folds. ${otherPlayer === 'deborah' ? 'Deborah' : 'Brume'} wins ₦${game.bet.toLocaleString()} without showing the cards.` }
+    const loss = committed[action.actor]
+    return { ...game, phase: 'complete', score: { ...game.score, [otherPlayer]: game.score[otherPlayer] + loss }, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} folds and loses only the ₦${loss.toLocaleString()} already committed. ${otherPlayer === 'deborah' ? 'Deborah' : 'Brume'}'s unmatched raise is not charged.` }
   }
   if (action.type !== 'ACCEPT') return game
+  const matched = { ...committed, [action.actor]: game.bet }
   const difference = game.cards.you.value - game.cards.deborah.value
-  if (!difference) return { ...game, phase: 'complete', revealed: true, message: "Stake accepted. It's a tie — nobody owes a thing!" }
+  if (!difference) return { ...game, committed: matched, phase: 'complete', revealed: true, message: "Stake accepted. It's a tie — nobody owes a thing!" }
   const winner = difference > 0 ? 'you' : 'deborah'
-  return { ...game, phase: 'complete', revealed: true, score: { ...game.score, [winner]: game.score[winner] + game.bet }, message: difference > 0 ? `Stake accepted. Brume wins ₦${game.bet.toLocaleString()}!` : `Stake accepted. Deborah wins ₦${game.bet.toLocaleString()}!` }
+  const loser = winner === 'you' ? 'deborah' : 'you'
+  return { ...game, committed: matched, phase: 'complete', revealed: true, score: { ...game.score, [winner]: game.score[winner] + matched[loser] }, message: difference > 0 ? `Stake accepted. Brume wins ₦${matched[loser].toLocaleString()}!` : `Stake accepted. Deborah wins ₦${matched[loser].toLocaleString()}!` }
 }
 
 function Nav({ page, setPage }) {
@@ -253,9 +260,10 @@ function GamesPage() {
     setPlayer(savedRoom.player)
     setJoinCode(savedRoom.code); joinGame(savedRoom.code)
   }
-  const { score, bet, cards, revealed, message, phase, turn } = game
+  const { score, bet, committed = { you: bet, deborah: bet }, cards, revealed, message, phase, turn } = game
   const actor = online.role === 'local' ? turn : player === 'deborah' ? 'deborah' : 'you'
   const canAct = phase === 'betting' && actor === turn && (online.role === 'local' || online.status === 'connected')
+  const amountToMatch = Math.max(0, bet - committed[actor])
   const balance = score.you - score.deborah
   return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw. Highest card wins. Ace is high.</p></div>
     <section className="online-panel">
@@ -267,7 +275,7 @@ function GamesPage() {
       <div className="scorebar"><div><small>YOU'VE WON</small><strong>₦{score.you.toLocaleString()}</strong></div><span className="heart-chip">♥</span><div><small>DEBORAH'S WON</small><strong>₦{score.deborah.toLocaleString()}</strong></div></div>
       <div className="table"><div className="player"><span>{online.role === 'local' || player === 'brume' ? 'YOU' : 'BRUME'}</span><PlayingCard card={cards.you} hidden={!revealed && online.role !== 'local' && player !== 'brume'} label="Brume's"/></div><div className="versus">VS</div><div className="player"><span>{online.role !== 'local' && player === 'deborah' ? 'YOU' : 'DEBORAH'}</span><PlayingCard card={cards.deborah} hidden={!revealed && (online.role === 'local' || player !== 'deborah')} label="Deborah's"/></div></div>
       <div className={`result ${phase === 'complete' ? 'show' : ''}`}>{message}</div>
-      {phase === 'betting' ? <div className="wager-controls"><div className="stake-total"><small>CURRENT STAKE</small><strong>₦{bet.toLocaleString()}</strong><span>{turn === 'deborah' ? "Deborah's decision" : "Brume's decision"}</span></div><div className="raise-control"><label htmlFor="raise">Add to the stake</label><span>₦<input id="raise" type="number" min="1" max="9999900" value={raiseAmount} onChange={event => setRaiseAmount(event.target.value)}/></span></div><div className="wager-actions"><button className="fold" disabled={!canAct} onClick={() => dispatch({ type: 'FOLD', actor })}>Fold</button><button className="raise" disabled={!canAct} onClick={() => dispatch({ type: 'RAISE', actor, amount: raiseAmount })}>Match &amp; add ₦{Number(raiseAmount || 0).toLocaleString()}</button><button className="primary accept" disabled={!canAct} onClick={() => dispatch({ type: 'ACCEPT', actor })}>Accept &amp; show cards <Sparkles size={16}/></button></div></div> : <div className="controls"><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>Deal next round <Sparkles size={17}/></button></div>}
+      {phase === 'betting' ? <div className="wager-controls"><div className="stake-total"><small>CURRENT STAKE</small><strong>₦{bet.toLocaleString()}</strong><span>{turn === 'deborah' ? "Deborah's decision" : "Brume's decision"} · ₦{committed[actor].toLocaleString()} committed</span></div><div className="raise-control"><label htmlFor="raise">Add after matching</label><span>₦<input id="raise" type="number" min="1" max="9999900" value={raiseAmount} onChange={event => setRaiseAmount(event.target.value)}/></span></div><div className="wager-actions"><button className="fold" disabled={!canAct} onClick={() => dispatch({ type: 'FOLD', actor })}>Fold (lose ₦{committed[actor].toLocaleString()})</button><button className="raise" disabled={!canAct} onClick={() => dispatch({ type: 'RAISE', actor, amount: raiseAmount })}>Match ₦{amountToMatch.toLocaleString()} &amp; add ₦{Number(raiseAmount || 0).toLocaleString()}</button><button className="primary accept" disabled={!canAct} onClick={() => dispatch({ type: 'ACCEPT', actor })}>{amountToMatch ? `Match ₦${amountToMatch.toLocaleString()} & show cards` : 'Show cards'} <Sparkles size={16}/></button></div></div> : <div className="controls"><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>Deal next round <Sparkles size={17}/></button></div>}
     </section>
     <div className="balance"><div><span>RUNNING BALANCE</span><strong>{balance === 0 ? 'All square' : balance > 0 ? `Deborah owes you ₦${balance.toLocaleString()}` : `You owe Deborah ₦${Math.abs(balance).toLocaleString()}`}</strong></div><button onClick={() => dispatch({ type: 'RESET' })}><RotateCcw size={15}/> Reset score</button></div>
     <p className="local-note">{online.status === 'connected' ? 'Both devices are synchronized live. Take turns raising, accepting, or folding.' : 'Pass the device to take turns, or start a private room to bluff on two devices.'}</p>
