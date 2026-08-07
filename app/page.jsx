@@ -2,7 +2,7 @@
 
 import { Component, useEffect, useRef, useState } from 'react'
 import Peer from 'peerjs'
-import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, Pencil, RotateCcw, Sparkles, Trash2, Users } from 'lucide-react'
+import { ArrowRight, Check, Copy, Dice5, Gamepad2, Heart, Home, Link2, Mail, Pencil, RotateCcw, Sparkles, Trash2, Users } from 'lucide-react'
 
 const suits = [
   { symbol: '♠', name: 'spades', color: 'black' }, { symbol: '♥', name: 'hearts', color: 'red' },
@@ -161,6 +161,49 @@ function PlayingCard({ card, hidden, label }) {
   return <div className={`playing-card ${card.color}`} aria-label={`${card.label} of ${card.name}`}><div className="corner"><b>{card.label}</b><i>{card.symbol}</i></div><div className="suit">{card.symbol}</div><div className="corner bottom"><b>{card.label}</b><i>{card.symbol}</i></div></div>
 }
 
+const LUDO_FINISH = 24
+const newLudoGame = () => ({ turn: 'brume', dice: null, rolled: false, winner: '', tokens: { brume: [-1, -1, -1, -1], deborah: [-1, -1, -1, -1] }, message: 'Brume rolls first. Roll a six to bring a piece home.' })
+
+function LudoGame() {
+  const [ludo, setLudo] = useState(newLudoGame)
+  const roll = () => setLudo(current => {
+    if (current.rolled || current.winner) return current
+    const dice = Math.floor(Math.random() * 6) + 1
+    const canMove = current.tokens[current.turn].some(position => position >= 0 ? position + dice <= LUDO_FINISH : dice === 6)
+    if (canMove) return { ...current, dice, rolled: true, message: `${current.turn === 'brume' ? 'Brume' : 'Deborah'} rolled ${dice}. Choose a piece.` }
+    const turn = current.turn === 'brume' ? 'deborah' : 'brume'
+    return { ...current, dice, turn, rolled: false, message: `No move this time. ${turn === 'brume' ? 'Brume' : 'Deborah'} is up.` }
+  })
+  const move = index => setLudo(current => {
+    if (!current.rolled || current.winner) return current
+    const positions = [...current.tokens[current.turn]]
+    const position = positions[index]
+    if ((position < 0 && current.dice !== 6) || (position >= 0 && position + current.dice > LUDO_FINISH)) return current
+    const destination = position < 0 ? 0 : position + current.dice
+    positions[index] = destination
+    const opponent = current.turn === 'brume' ? 'deborah' : 'brume'
+    const opponentPieces = [...current.tokens[opponent]]
+    if (destination > 0 && destination < LUDO_FINISH) opponentPieces.forEach((spot, piece) => { if (spot === destination) opponentPieces[piece] = -1 })
+    const tokens = { ...current.tokens, [current.turn]: positions, [opponent]: opponentPieces }
+    const winner = positions.every(spot => spot === LUDO_FINISH) ? current.turn : ''
+    const getsAnotherTurn = current.dice === 6 && !winner
+    const turn = getsAnotherTurn ? current.turn : opponent
+    return { ...current, tokens, winner, turn, dice: null, rolled: false, message: winner ? `${winner === 'brume' ? 'Brume' : 'Deborah'} brought every piece home and wins!` : getsAnotherTurn ? 'A six! Roll again.' : `${turn === 'brume' ? 'Brume' : 'Deborah'}’s turn.` }
+  })
+  const activeTokens = ludo.tokens[ludo.turn]
+  return <section className="ludo-section" aria-labelledby="ludo-title">
+    <div className="ludo-heading"><span className="section-kicker">NEXT ON THE BOARD</span><h2 id="ludo-title">Ludo</h2><p>Race all four pieces home. Roll a six to leave the yard — and watch out for captures.</p></div>
+    <div className="ludo-game">
+      <div className="ludo-board" aria-label="Ludo race board">
+        <div className="ludo-yard brume-yard"><strong>BRUME</strong><div>{ludo.tokens.brume.map((position, index) => <span key={index} className={position < 0 ? '' : 'away'}>♟</span>)}</div></div>
+        <div className="ludo-path">{Array.from({ length: 25 }, (_, spot) => <span key={spot} className={spot === 0 ? 'start' : spot === LUDO_FINISH ? 'finish' : ''}>{spot === LUDO_FINISH ? '♥' : <><i>{ludo.tokens.brume.filter(value => value === spot).length || ''}</i><b>{ludo.tokens.deborah.filter(value => value === spot).length || ''}</b></>}</span>)}</div>
+        <div className="ludo-yard deborah-yard"><strong>DEBORAH</strong><div>{ludo.tokens.deborah.map((position, index) => <span key={index} className={position < 0 ? '' : 'away'}>♟</span>)}</div></div>
+      </div>
+      <div className="ludo-panel"><div className={`turn-badge ${ludo.turn}`}><span>{ludo.turn === 'brume' ? '♠' : '♥'}</span><div><small>CURRENT TURN</small><strong>{ludo.turn === 'brume' ? 'Brume' : 'Deborah'}</strong></div></div><div className="ludo-die" aria-live="polite">{ludo.dice || '—'}</div><p>{ludo.message}</p>{ludo.rolled ? <div className="piece-picker"><small>MOVE A PIECE</small><div>{activeTokens.map((position, index) => { const disabled = (position < 0 && ludo.dice !== 6) || position + ludo.dice > LUDO_FINISH; return <button key={index} disabled={disabled} onClick={() => move(index)}>♟ <span>{index + 1}</span></button> })}</div></div> : <button className="primary roll-button" disabled={Boolean(ludo.winner)} onClick={roll}><Dice5 size={19}/> Roll the dice</button>}<button className="ludo-reset" onClick={() => setLudo(newLudoGame())}><RotateCcw size={14}/> New game</button></div>
+    </div>
+  </section>
+}
+
 function GamesPage() {
   const [game, setGame] = useState(loadGame)
   const [raiseAmount, setRaiseAmount] = useState(100)
@@ -272,6 +315,7 @@ function GamesPage() {
     </section>
     <div className="balance"><div><span>RUNNING BALANCE</span><strong>{balance === 0 ? 'All square' : balance > 0 ? `Deborah owes you ₦${balance.toLocaleString()}` : `You owe Deborah ₦${Math.abs(balance).toLocaleString()}`}</strong></div><button onClick={() => dispatch({ type: 'RESET' })}><RotateCcw size={15}/> Reset score</button></div>
     <p className="local-note">{online.status === 'connected' ? 'Both devices are synchronized live. Take turns raising, accepting, or folding.' : 'Pass the device to take turns, or start a private room to bluff on two devices.'}</p>
+    <LudoGame/>
   </main>
 }
 
