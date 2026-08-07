@@ -2,9 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Check, Copy, Heart, Link2, RotateCcw, Sparkles, Users } from 'lucide-react'
+import { ArrowLeft, Check, Copy, Link2, RotateCcw, Sparkles, Users } from 'lucide-react'
 import { storage } from '../../lib/client-storage'
 
+const suits = [
+  { symbol: '♠', name: 'spades', color: 'black' }, { symbol: '♥', name: 'hearts', color: 'red' },
+  { symbol: '♦', name: 'diamonds', color: 'red' }, { symbol: '♣', name: 'clubs', color: 'black' },
+]
+const ranks = [
+  { label: '2', value: 2 }, { label: '3', value: 3 }, { label: '4', value: 4 }, { label: '5', value: 5 },
   { label: '6', value: 6 }, { label: '7', value: 7 }, { label: '8', value: 8 }, { label: '9', value: 9 },
   { label: '10', value: 10 }, { label: 'J', value: 11 }, { label: 'Q', value: 12 }, { label: 'K', value: 13 }, { label: 'A', value: 14 },
 ]
@@ -30,18 +36,26 @@ function dealRound(score, remainingCards = deck) {
 
 const INITIAL_STAKE = 100
 const newGame = () => dealRound({ you: 0, deborah: 0 })
+function loadGame() {
+  const saved = storage.get('deborah-game')
+  if (!saved) return newGame()
 
-const storage = {
-  get(key) {
-    try { return window.localStorage.getItem(key) }
-    catch { return null }
-  },
-  set(key, value) {
-    try { window.localStorage.setItem(key, value) }
-    return <main className="crash-page"><div><Heart size={34} fill="currentColor"/><h1>Let’s try that again.</h1><p>Something unexpected happened, but your little corner is still here.</p><button className="primary" onClick={() => { storage.remove('deborah-game'); window.location.reload() }}>Restart the app</button></div></main>
+  try {
+    const game = JSON.parse(saved)
+    const validCard = card => card && typeof card.value === 'number' && typeof card.label === 'string'
+    const validScore = game?.score && Number.isFinite(game.score.you) && Number.isFinite(game.score.deborah)
+    if (!validScore || !Number.isFinite(game.bet) || !validCard(game.cards?.you) || !validCard(game.cards?.deborah)) throw new Error('Invalid saved game')
+    const bet = game.phase ? game.bet : INITIAL_STAKE
+    const committed = game.committed && Number.isFinite(game.committed.you) && Number.isFinite(game.committed.deborah) ? game.committed : { you: bet, deborah: bet }
+    const cardKey = card => `${card.label}-${card.name}`
+    const dealtCards = new Set([cardKey(game.cards.you), cardKey(game.cards.deborah)])
+    const remainingCards = Array.isArray(game.remainingCards) ? game.remainingCards : deck.filter(card => !dealtCards.has(cardKey(card)))
+    return { ...game, bet, committed, remainingCards, phase: game.phase || (game.revealed ? 'complete' : 'betting'), turn: game.turn || 'deborah' }
+  } catch {
+    storage.remove('deborah-game')
+    return newGame()
   }
 }
-
 function updateGame(game, action) {
   if (action.type === 'RESET') return { ...newGame(), message: 'Score cleared. Fresh start!' }
   if (action.type === 'PLAY' && game.phase === 'complete') return dealRound(game.score, game.remainingCards) || game
