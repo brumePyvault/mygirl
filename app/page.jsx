@@ -1,7 +1,6 @@
 'use client'
 
 import { Component, useEffect, useRef, useState } from 'react'
-import Peer from 'peerjs'
 import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, Pencil, RotateCcw, Sparkles, Trash2, Users } from 'lucide-react'
 
 const suits = [
@@ -169,18 +168,14 @@ function GamesPage() {
   const [savedRoom, setSavedRoom] = useState(() => {
     try {
       const room = JSON.parse(storage.get('deborah-room'))
-      return room && Date.now() - room.lastActive < 5 * 60 * 1000 ? room : null
+      return room && Date.now() - room.lastActive < 24 * 60 * 60 * 1000 ? room : null
     } catch { return null }
   })
   const [joinCode, setJoinCode] = useState('')
   const [copied, setCopied] = useState(false)
-  const peerRef = useRef(null)
-  const connectionRef = useRef(null)
   const gameRef = useRef(game)
-  const guestView = current => ({ ...current, cards: { you: current.revealed ? current.cards.you : null, deborah: current.cards.deborah } })
 
   useEffect(() => { gameRef.current = game; storage.set('deborah-game', JSON.stringify(game)) }, [game])
-  useEffect(() => () => peerRef.current?.destroy(), [])
   useEffect(() => {
     if (!player) return
     storage.set('deborah-player', player)
@@ -190,69 +185,73 @@ function GamesPage() {
     }
   }, [online.role, online.code, online.status, player])
   useEffect(() => {
-    if (online.role === 'local') return
-    const heartbeat = setInterval(() => {
-      const room = { role: online.role, code: online.code, player, lastActive: Date.now() }
-      storage.set('deborah-room', JSON.stringify(room))
-    }, 15000)
-    return () => clearInterval(heartbeat)
+    if (online.role === 'local' || !online.code) return
+    let active = true
+    const sync = async () => {
+      try {
+        const response = await fetch(`/api/rooms?code=${encodeURIComponent(online.code)}&player=${player}`, { cache: 'no-store' })
+        if (!response.ok) throw new Error(response.status === 404 ? 'This room expired or no longer exists.' : 'Connection lost. Reconnecting…')
+        const data = await response.json()
+        if (active) { gameRef.current = data.game; setGame(data.game); setOnline(current => ({ ...current, status: current.role === 'host' && !data.ready ? 'waiting' : 'connected', error: '' })) }
+      } catch (error) {
+        if (active) setOnline(current => ({ ...current, status: 'connecting', error: error.message }))
+      }
+    }
+    sync()
+    const timer = setInterval(sync, 1500)
+    const resume = () => document.visibilityState === 'visible' && sync()
+    document.addEventListener('visibilitychange', resume)
+    return () => { active = false; clearInterval(timer); document.removeEventListener('visibilitychange', resume) }
   }, [online.role, online.code, player])
 
-  const attachConnection = (connection, role) => {
-    connectionRef.current = connection
-    connection.on('open', () => {
-      setOnline(current => ({ ...current, role, status: 'connected', error: '' }))
-      if (role === 'host') connection.send({ type: 'STATE', game: guestView(gameRef.current) })
-    })
-    connection.on('data', data => {
-      if (data.type === 'STATE') setGame(data.game)
-      if (data.type === 'ACTION' && role === 'host') {
-        const next = updateGame(gameRef.current, data.action)
-        gameRef.current = next
-        setGame(next)
-        connection.send({ type: 'STATE', game: guestView(next) })
-      }
-    })
-    connection.on('close', () => setOnline(current => ({ ...current, status: 'disconnected', error: 'The other player left the room.' })))
-    connection.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'The connection was interrupted. Try joining again.' })))
-  }
-
-  const hostGame = (roomCode) => {
+  const hostGame = async () => {
     if (!player) return
-    peerRef.current?.destroy()
-    const code = roomCode || Math.random().toString(36).slice(2, 8).toUpperCase()
-    const peer = new Peer(`deborah-${code.toLowerCase()}`)
-    peerRef.current = peer
-    setOnline({ role: 'host', status: 'waiting', code, error: '' })
-    peer.on('connection', connection => attachConnection(connection, 'host'))
-    peer.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'Could not create the room. Please try again.' })))
+    setOnline({ role: 'host', status: 'connecting', code: '', error: '' })
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const code = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0')
+      try {
+        const response = await fetch('/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, game: gameRef.current, player }) })
+        if (response.status === 409) continue
+        if (!response.ok) throw new Error()
+        setOnline({ role: 'host', status: 'waiting', code, error: '' }); return
+      } catch { setOnline({ role: 'local', status: 'error', code: '', error: 'Could not create a room. Check the database connection and try again.' }); return }
+    }
   }
 
-  const joinGame = (roomCode) => {
+  const joinGame = async (roomCode) => {
     const code = (typeof roomCode === 'string' ? roomCode : joinCode).trim().replace(/[^a-z0-9]/gi, '').toUpperCase()
     if (!code || !player) return
-    peerRef.current?.destroy()
-    const peer = new Peer()
-    peerRef.current = peer
     setOnline({ role: 'guest', status: 'connecting', code, error: '' })
-    peer.on('open', () => attachConnection(peer.connect(`deborah-${code.toLowerCase()}`, { reliable: true }), 'guest'))
-    peer.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'Room not found. Check the code and try again.' })))
+    try {
+      const response = await fetch(`/api/rooms?code=${encodeURIComponent(code)}&player=${player}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error()
+      const data = await response.json(); gameRef.current = data.game; setGame(data.game)
+      setOnline({ role: 'guest', status: 'connected', code, error: '' })
+    } catch { setOnline({ role: 'local', status: 'error', code: '', error: 'Room not found. Check the code and try again.' }) }
   }
 
-  const dispatch = action => {
-    if (online.role === 'guest' && online.status === 'connected') return connectionRef.current?.send({ type: 'ACTION', action })
+  const dispatch = async action => {
+    if (action.type === 'PLAY') action = { ...action, game: newRound(gameRef.current.score) }
+    if (action.type === 'RESET') action = { ...action, game: { ...newGame(), message: 'Score cleared. Fresh start!' } }
+    if (online.role !== 'local') {
+      if (online.status !== 'connected') return
+      try {
+        const response = await fetch('/api/rooms', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: online.code, action }) })
+        if (!response.ok) throw new Error()
+        const data = await response.json(); gameRef.current = data.game; setGame(data.game)
+      } catch { setOnline(current => ({ ...current, status: 'connecting', error: 'Connection lost. Reconnecting…' })) }
+      return
+    }
     const next = updateGame(gameRef.current, action)
     gameRef.current = next
     setGame(next)
-    if (online.role === 'host' && online.status === 'connected') connectionRef.current?.send({ type: 'STATE', game: guestView(next) })
   }
 
-  const leaveRoom = () => { peerRef.current?.destroy(); peerRef.current = null; connectionRef.current = null; storage.remove('deborah-room'); setSavedRoom(null); setOnline({ role: 'local', status: 'offline', code: '', error: '' }) }
+  const leaveRoom = () => { storage.remove('deborah-room'); setSavedRoom(null); setOnline({ role: 'local', status: 'offline', code: '', error: '' }) }
   const returnToRoom = () => {
     if (!savedRoom) return
     setPlayer(savedRoom.player)
-    if (savedRoom.role === 'host') hostGame(savedRoom.code)
-    else { setJoinCode(savedRoom.code); joinGame(savedRoom.code) }
+    setJoinCode(savedRoom.code); joinGame(savedRoom.code)
   }
   const { score, bet, cards, revealed, message, phase, turn } = game
   const actor = online.role === 'local' ? turn : player === 'deborah' ? 'deborah' : 'you'
@@ -260,13 +259,13 @@ function GamesPage() {
   const balance = score.you - score.deborah
   return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw. Highest card wins. Ace is high.</p></div>
     <section className="online-panel">
-      <div className="online-intro"><span><Users size={18}/> PLAY ON TWO DEVICES</span><p>Choose who you are. Your room stays returnable for five minutes.</p></div>
+      <div className="online-intro"><span><Users size={18}/> PLAY FROM ANYWHERE</span><p>Rooms work across different Wi-Fi and mobile networks and remain available for 24 hours.</p></div>
       {online.role === 'local' ? <div className="online-setup"><div className="player-picker" aria-label="Choose player"><button className={player === 'brume' ? 'selected' : ''} onClick={() => setPlayer('brume')}>I’m Brume</button><button className={player === 'deborah' ? 'selected' : ''} onClick={() => setPlayer('deborah')}>I’m Deborah</button></div>{savedRoom && <button className="return-room" onClick={returnToRoom}>{savedRoom.player === 'brume' ? 'Brume' : 'Deborah'} is returning to {savedRoom.code}</button>}<div className="room-actions"><button className="host-button" onClick={() => hostGame()} disabled={!player}><Link2 size={16}/> Start a room</button><span>or</span><div className="join-control"><input aria-label="Room code" value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())} onKeyDown={event => event.key === 'Enter' && joinGame()} placeholder="ROOM CODE" maxLength={6}/><button onClick={joinGame} disabled={!player}>Join</button></div></div></div> : <div className="room-status"><div><small>{online.status === 'connected' ? `${player.toUpperCase()} — GAME IS LIVE` : online.status === 'waiting' ? `WAITING FOR ${player === 'brume' ? 'DEBORAH' : 'BRUME'}` : online.status.toUpperCase()}</small><strong>{online.code}</strong></div>{online.status === 'waiting' && <button className="copy-code" onClick={() => { navigator.clipboard.writeText(online.code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy code'}</button>}<button className="leave" onClick={leaveRoom}>Leave room</button></div>}
       {online.error && <p className="connection-error">{online.error}</p>}
     </section>
     <section className="game-board">
       <div className="scorebar"><div><small>YOU'VE WON</small><strong>₦{score.you.toLocaleString()}</strong></div><span className="heart-chip">♥</span><div><small>DEBORAH'S WON</small><strong>₦{score.deborah.toLocaleString()}</strong></div></div>
-      <div className="table"><div className="player"><span>{online.role === 'guest' ? 'YOUR BABE' : 'YOU'}</span><PlayingCard card={cards.you} hidden={!revealed && online.role === 'guest'} label="Your babe's"/></div><div className="versus">VS</div><div className="player"><span>{online.role === 'guest' ? 'YOU' : 'DEBORAH'}</span><PlayingCard card={cards.deborah} hidden={!revealed && online.role !== 'guest'} label="Deborah's"/></div></div>
+      <div className="table"><div className="player"><span>{online.role === 'local' || player === 'brume' ? 'YOU' : 'BRUME'}</span><PlayingCard card={cards.you} hidden={!revealed && online.role !== 'local' && player !== 'brume'} label="Brume's"/></div><div className="versus">VS</div><div className="player"><span>{online.role !== 'local' && player === 'deborah' ? 'YOU' : 'DEBORAH'}</span><PlayingCard card={cards.deborah} hidden={!revealed && (online.role === 'local' || player !== 'deborah')} label="Deborah's"/></div></div>
       <div className={`result ${phase === 'complete' ? 'show' : ''}`}>{message}</div>
       {phase === 'betting' ? <div className="wager-controls"><div className="stake-total"><small>CURRENT STAKE</small><strong>₦{bet.toLocaleString()}</strong><span>{turn === 'deborah' ? "Deborah's decision" : "Brume's decision"}</span></div><div className="raise-control"><label htmlFor="raise">Add to the stake</label><span>₦<input id="raise" type="number" min="1" max="9999900" value={raiseAmount} onChange={event => setRaiseAmount(event.target.value)}/></span></div><div className="wager-actions"><button className="fold" disabled={!canAct} onClick={() => dispatch({ type: 'FOLD', actor })}>Fold</button><button className="raise" disabled={!canAct} onClick={() => dispatch({ type: 'RAISE', actor, amount: raiseAmount })}>Match &amp; add ₦{Number(raiseAmount || 0).toLocaleString()}</button><button className="primary accept" disabled={!canAct} onClick={() => dispatch({ type: 'ACCEPT', actor })}>Accept &amp; show cards <Sparkles size={16}/></button></div></div> : <div className="controls"><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>Deal next round <Sparkles size={17}/></button></div>}
     </section>
