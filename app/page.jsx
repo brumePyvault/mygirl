@@ -15,17 +15,25 @@ const ranks = [
 
 const deck = ranks.flatMap(rank => suits.map(suit => ({ ...rank, ...suit })))
 
-function dealCards() {
-  const firstIndex = Math.floor(Math.random() * deck.length)
-  const secondIndex = Math.floor(Math.random() * (deck.length - 1))
-  const adjustedSecondIndex = secondIndex >= firstIndex ? secondIndex + 1 : secondIndex
+function shuffle(cards) {
+  const shuffled = cards.map(card => ({ ...card }))
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1))
+    ;[shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]]
+  }
+  return shuffled
+}
 
-  return { you: { ...deck[firstIndex] }, deborah: { ...deck[adjustedSecondIndex] } }
+function dealRound(score, remainingCards = deck) {
+  const shuffled = shuffle(remainingCards)
+  const [you, deborah, ...remaining] = shuffled
+  if (!deborah) return null
+
+  return { score, bet: INITIAL_STAKE, committed: { you: INITIAL_STAKE, deborah: INITIAL_STAKE }, cards: { you, deborah }, remainingCards: remaining, revealed: false, phase: 'betting', turn: 'deborah', roundResult: null, message: 'The opening stake is ₦100 each. Bluff, raise, accept, or fold.' }
 }
 
 const INITIAL_STAKE = 100
-const newRound = score => ({ score, bet: INITIAL_STAKE, committed: { you: INITIAL_STAKE, deborah: INITIAL_STAKE }, cards: dealCards(), revealed: false, phase: 'betting', turn: 'deborah', roundResult: null, message: 'The opening stake is ₦100 each. Bluff, raise, accept, or fold.' })
-const newGame = () => newRound({ you: 0, deborah: 0 })
+const newGame = () => dealRound({ you: 0, deborah: 0 })
 
 const storage = {
   get(key) {
@@ -53,7 +61,10 @@ function loadGame() {
     if (!validScore || !Number.isFinite(game.bet) || !validCard(game.cards?.you) || !validCard(game.cards?.deborah)) throw new Error('Invalid saved game')
     const bet = game.phase ? game.bet : INITIAL_STAKE
     const committed = game.committed && Number.isFinite(game.committed.you) && Number.isFinite(game.committed.deborah) ? game.committed : { you: bet, deborah: bet }
-    return { ...game, bet, committed, phase: game.phase || (game.revealed ? 'complete' : 'betting'), turn: game.turn || 'deborah' }
+    const cardKey = card => `${card.label}-${card.name}`
+    const dealtCards = new Set([cardKey(game.cards.you), cardKey(game.cards.deborah)])
+    const remainingCards = Array.isArray(game.remainingCards) ? game.remainingCards : deck.filter(card => !dealtCards.has(cardKey(card)))
+    return { ...game, bet, committed, remainingCards, phase: game.phase || (game.revealed ? 'complete' : 'betting'), turn: game.turn || 'deborah' }
   } catch {
     storage.remove('deborah-game')
     return newGame()
@@ -78,7 +89,7 @@ class AppErrorBoundary extends Component {
 
 function updateGame(game, action) {
   if (action.type === 'RESET') return { ...newGame(), message: 'Score cleared. Fresh start!' }
-  if (action.type === 'PLAY' && game.phase === 'complete') return newRound(game.score)
+  if (action.type === 'PLAY' && game.phase === 'complete') return dealRound(game.score, game.remainingCards) || game
   if (game.phase !== 'betting' || action.actor !== game.turn) return game
   const otherPlayer = action.actor === 'deborah' ? 'you' : 'deborah'
   const committed = game.committed || { you: game.bet, deborah: game.bet }
@@ -269,7 +280,11 @@ function GamesPage() {
   }
 
   const dispatch = async action => {
-    if (action.type === 'PLAY') action = { ...action, game: newRound(gameRef.current.score) }
+    if (action.type === 'PLAY') {
+      const nextRound = dealRound(gameRef.current.score, gameRef.current.remainingCards)
+      if (!nextRound) return
+      action = { ...action, game: nextRound }
+    }
     if (action.type === 'RESET') action = { ...action, game: { ...newGame(), message: 'Score cleared. Fresh start!' } }
     if (online.role !== 'local') {
       if (online.status !== 'connected') return
@@ -291,7 +306,7 @@ function GamesPage() {
     setPlayer(savedRoom.player)
     setJoinCode(savedRoom.code); joinGame(savedRoom.code)
   }
-  const { score, bet, committed = { you: bet, deborah: bet }, cards, revealed, phase, turn } = game
+  const { score, bet, committed = { you: bet, deborah: bet }, cards, remainingCards = [], revealed, phase, turn } = game
   const actor = online.role === 'local' ? turn : player === 'deborah' ? 'deborah' : 'you'
   const canAct = phase === 'betting' && actor === turn && (online.role === 'local' || online.status === 'connected')
   const amountToMatch = Math.max(0, bet - committed[actor])
@@ -306,7 +321,8 @@ function GamesPage() {
       <div className="scorebar"><div><small>BRUME HAS WON</small><strong>₦{score.you.toLocaleString()}</strong></div><span className="heart-chip">♥</span><div><small>DEBORAH HAS WON</small><strong>₦{score.deborah.toLocaleString()}</strong></div></div>
       <div className="table"><div className="player"><span>BRUME</span><PlayingCard card={cards.you} hidden={!revealed && online.role !== 'local' && player !== 'brume'} label="Brume's"/></div><div className="versus">VS</div><div className="player"><span>DEBORAH</span><PlayingCard card={cards.deborah} hidden={!revealed && (online.role === 'local' || player !== 'deborah')} label="Deborah's"/></div></div>
       <div className={`result ${phase === 'complete' ? 'show' : ''}`}>{roundMessage(game, player)}</div>
-      {phase === 'betting' ? <div className="wager-controls"><div className="stake-total"><small>CURRENT STAKE</small><strong>₦{bet.toLocaleString()}</strong><span>{turn === 'deborah' ? "Deborah's decision" : "Brume's decision"} · ₦{committed[actor].toLocaleString()} committed</span></div><div className="raise-control"><label htmlFor="raise">Add after matching</label><span>₦<input id="raise" type="number" min="1" max="9999900" value={raiseAmount} onChange={event => setRaiseAmount(event.target.value)}/></span></div><div className="wager-actions"><button className="fold" disabled={!canAct} onClick={() => dispatch({ type: 'FOLD', actor })}>Fold (lose ₦{committed[actor].toLocaleString()})</button><button className="raise" disabled={!canAct} onClick={() => dispatch({ type: 'RAISE', actor, amount: raiseAmount })}>Match ₦{amountToMatch.toLocaleString()} &amp; add ₦{Number(raiseAmount || 0).toLocaleString()}</button><button className="primary accept" disabled={!canAct} onClick={() => dispatch({ type: 'ACCEPT', actor })}>{amountToMatch ? `Match ₦${amountToMatch.toLocaleString()} & show cards` : 'Show cards'} <Sparkles size={16}/></button></div></div> : <div className="controls"><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>Deal next round <Sparkles size={17}/></button></div>}
+      <div className="deck-tracker" aria-label={`${remainingCards.length} cards left in the deck`}><span className="mini-deck">♠</span><div><strong>{remainingCards.length} cards left</strong><small>Remaining deck reshuffles before every deal</small></div><div className="discard-pile"><span>PLAYED PILE</span><b>{deck.length - remainingCards.length}</b></div></div>
+      {phase === 'betting' ? <div className="wager-controls"><div className="stake-total"><small>CURRENT STAKE</small><strong>₦{bet.toLocaleString()}</strong><span>{turn === 'deborah' ? "Deborah's decision" : "Brume's decision"} · ₦{committed[actor].toLocaleString()} committed</span></div><div className="raise-control"><label htmlFor="raise">Add after matching</label><span>₦<input id="raise" type="number" min="1" max="9999900" value={raiseAmount} onChange={event => setRaiseAmount(event.target.value)}/></span></div><div className="wager-actions"><button className="fold" disabled={!canAct} onClick={() => dispatch({ type: 'FOLD', actor })}>Fold (lose ₦{committed[actor].toLocaleString()})</button><button className="raise" disabled={!canAct} onClick={() => dispatch({ type: 'RAISE', actor, amount: raiseAmount })}>Match ₦{amountToMatch.toLocaleString()} &amp; add ₦{Number(raiseAmount || 0).toLocaleString()}</button><button className="primary accept" disabled={!canAct} onClick={() => dispatch({ type: 'ACCEPT', actor })}>{amountToMatch ? `Match ₦${amountToMatch.toLocaleString()} & show cards` : 'Show cards'} <Sparkles size={16}/></button></div></div> : remainingCards.length ? <div className="controls"><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>Shuffle &amp; deal next round <Sparkles size={17}/></button></div> : <div className="game-over"><Sparkles size={19}/><div><strong>Game over — the deck is finished.</strong><span>Reset the score to shuffle all 52 cards and play again.</span></div></div>}
     </section>
     <div className="balance"><div><span>RUNNING BALANCE</span><strong>{balanceMessage(balance, player)}</strong></div><button onClick={() => dispatch({ type: 'RESET' })}><RotateCcw size={15}/> Reset score</button></div>
     <p className="local-note">{online.status === 'connected' ? 'Both devices are synchronized live. Take turns raising, accepting, or folding.' : 'Pass the device to take turns, or start a private room to bluff on two devices.'}</p>
