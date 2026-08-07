@@ -32,15 +32,15 @@ function updateGame(game, action) {
   }
   if (action.type === 'FOLD') {
     const loss = committed[action.actor]
-    return { ...game, phase: 'complete', score: { ...game.score, [otherPlayer]: game.score[otherPlayer] + loss }, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} folds and loses only the ₦${loss.toLocaleString()} already committed. ${otherPlayer === 'deborah' ? 'Deborah' : 'Brume'}'s unmatched raise is not charged.` }
+    return { ...game, phase: 'complete', roundResult: { winner: otherPlayer, amount: loss, reason: 'fold' }, score: { ...game.score, [otherPlayer]: game.score[otherPlayer] + loss }, message: `${action.actor === 'deborah' ? 'Deborah' : 'Brume'} folds and loses only the ₦${loss.toLocaleString()} already committed. ${otherPlayer === 'deborah' ? 'Deborah' : 'Brume'}'s unmatched raise is not charged.` }
   }
   if (action.type !== 'ACCEPT') return game
   const matched = { ...committed, [action.actor]: game.bet }
   const difference = game.cards.you.value - game.cards.deborah.value
-  if (!difference) return { ...game, committed: matched, phase: 'complete', revealed: true, message: "Stake accepted. It's a tie — nobody owes a thing!" }
+  if (!difference) return { ...game, committed: matched, phase: 'complete', revealed: true, roundResult: { winner: null, amount: 0, reason: 'tie' }, message: "Stake accepted. It's a tie — nobody owes a thing!" }
   const winner = difference > 0 ? 'you' : 'deborah'
   const loser = winner === 'you' ? 'deborah' : 'you'
-  return { ...game, committed: matched, phase: 'complete', revealed: true, score: { ...game.score, [winner]: game.score[winner] + matched[loser] }, message: difference > 0 ? `Stake accepted. Brume wins ₦${matched[loser].toLocaleString()}!` : `Stake accepted. Deborah wins ₦${matched[loser].toLocaleString()}!` }
+  return { ...game, committed: matched, phase: 'complete', revealed: true, roundResult: { winner, amount: matched[loser], reason: 'cards' }, score: { ...game.score, [winner]: game.score[winner] + matched[loser] }, message: difference > 0 ? `Stake accepted. Brume wins ₦${matched[loser].toLocaleString()}!` : `Stake accepted. Deborah wins ₦${matched[loser].toLocaleString()}!` }
 }
 
 const response = (body, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
