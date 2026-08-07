@@ -1,3 +1,5 @@
+'use client'
+
 import { Component, useEffect, useRef, useState } from 'react'
 import Peer from 'peerjs'
 import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, RotateCcw, Sparkles, Users } from 'lucide-react'

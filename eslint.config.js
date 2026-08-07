@@ -1,14 +1,18 @@
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
+  { ignores: ['.next', 'node_modules'] },
   {
-    files: ['**/*.{js,jsx}'],
-    languageOptions: { ecmaVersion: 2020, globals: globals.browser, parserOptions: { ecmaVersion: 'latest', ecmaFeatures: { jsx: true }, sourceType: 'module' } },
-    plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
-    rules: { ...js.configs.recommended.rules, ...reactHooks.configs.recommended.rules, ...reactRefresh.configs.vite.rules },
+    files: ['app/**/*.{js,jsx}'],
+    languageOptions: { ecmaVersion: 2020, globals: { ...globals.browser, ...globals.node }, parserOptions: { ecmaVersion: 'latest', ecmaFeatures: { jsx: true }, sourceType: 'module' } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...js.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
+      // ESLint's base rule cannot see that JSX uses component identifiers.
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z]' }],
+    },
   },
 ]
