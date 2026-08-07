@@ -64,6 +64,7 @@ class AppErrorBoundary extends Component {
 
 function updateGame(game, action) {
   if (action.type === 'BET') return { ...game, bet: Math.max(1, game.bet + action.amount) }
+  if (action.type === 'SET_BET') return { ...game, bet: Math.max(1, Math.min(10000000, Math.round(Number(action.amount) || 1))) }
   if (action.type === 'RESET') return { ...newGame(), message: 'Score cleared. Fresh start!' }
   if (action.type !== 'PLAY') return game
   if (game.revealed) return { ...game, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, message: 'Choose the stake, then reveal the cards.' }
@@ -79,22 +80,30 @@ function Nav({ page, setPage }) {
     <div className="nav-links">
       <button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}><Home size={16}/> Home</button>
       <button className={page === 'games' ? 'active' : ''} onClick={() => setPage('games')}><Gamepad2 size={16}/> Games</button>
+      <button className={page === 'notes' ? 'active' : ''} onClick={() => setPage('notes')}><Mail size={16}/> Notes</button>
     </div>
-    <button className="love-note-link" onClick={() => { setPage('home'); setTimeout(() => document.querySelector('#notes')?.scrollIntoView({ behavior: 'smooth' }), 0) }}><Mail size={16}/> Love notes</button>
+    <button className="love-note-link" onClick={() => setPage('notes')}><Mail size={16}/> Love notes</button>
   </nav></header>
 }
 
 function HomePage({ setPage }) {
   const [note, setNote] = useState(() => storage.get('deborah-note') || '')
   const [saved, setSaved] = useState(false)
-  const saveNote = () => { storage.set('deborah-note', note); setSaved(true); setTimeout(() => setSaved(false), 1800) }
+  const saveNote = async () => {
+    storage.set('deborah-note', note)
+    try {
+      const response = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: note }) })
+      if (!response.ok) throw new Error('Save failed')
+      setNote(''); storage.remove('deborah-note'); setSaved(true); setTimeout(() => setSaved(false), 1800)
+    } catch { setPage('notes') }
+  }
   return <main>
     <section className="hero shell">
       <div className="hero-copy">
         <div className="eyebrow"><Sparkles size={15}/> A corner of the internet, just for us</div>
         <h1>Welcome, <em>Deborah.</em></h1>
         <p className="lead">I made this little place to hold our favorite memories, silly games, and all the words I never want to leave unsaid.</p>
-        <div className="hero-actions"><button className="primary" onClick={() => setPage('games')}>Play a game <ArrowRight size={18}/></button><button className="secondary" onClick={() => document.querySelector('#notes').scrollIntoView({ behavior: 'smooth' })}>Leave a love note</button></div>
+        <div className="hero-actions"><button className="primary" onClick={() => setPage('games')}>Play a game <ArrowRight size={18}/></button><button className="secondary" onClick={() => setPage('notes')}>Leave a love note</button></div>
         <div className="promise"><Heart size={18} fill="currentColor"/><span><strong>Made with intention</strong><small>For the quiet days, loud laughs, and everything in between.</small></span></div>
       </div>
       <div className="hero-art" aria-label="A love letter for Deborah">
@@ -105,9 +114,32 @@ function HomePage({ setPage }) {
     </section>
     <section className="moments shell">
       <div><span className="section-kicker">OURS TO KEEP</span><h2>Little things, big love.</h2></div>
-      <div className="moment-grid"><article><span>01</span><h3>Play together</h3><p>Settle the score with a quick round of Higher or Lower.</p><button onClick={() => setPage('games')}>Open games <ArrowRight size={15}/></button></article><article><span>02</span><h3>Write it down</h3><p>Leave a note for the words worth keeping close.</p><button onClick={() => document.querySelector('#notes').scrollIntoView({ behavior: 'smooth' })}>Write a note <ArrowRight size={15}/></button></article><article><span>03</span><h3>More to come</h3><p>This is only the first page of something that keeps growing.</p><div className="soon">SOON, MY LOVE</div></article></div>
+      <div className="moment-grid"><article><span>01</span><h3>Play together</h3><p>Settle the score with a quick round of Higher or Lower.</p><button onClick={() => setPage('games')}>Open games <ArrowRight size={15}/></button></article><article><span>02</span><h3>Write it down</h3><p>Leave a note for the words worth keeping close.</p><button onClick={() => setPage('notes')}>Write a note <ArrowRight size={15}/></button></article><article><span>03</span><h3>More to come</h3><p>This is only the first page of something that keeps growing.</p><div className="soon">SOON, MY LOVE</div></article></div>
     </section>
-    <section className="notes-section" id="notes"><div className="shell note-layout"><div><span className="section-kicker">A NOTE FOR DEBORAH</span><h2>Some things deserve<br/>to be written down.</h2><p>Your note stays safely in this browser, ready whenever you come back.</p></div><div className="note-card"><label htmlFor="love-note">My love,</label><textarea id="love-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{note.length} / 500</small><button onClick={saveNote} disabled={!note.trim()}>{saved ? 'Saved with love ♥' : 'Keep this note'} <Heart size={15}/></button></div></div></div></section>
+    <section className="notes-section" id="notes"><div className="shell note-layout"><div><span className="section-kicker">A NOTE FOR DEBORAH</span><h2>Some things deserve<br/>to be written down.</h2><p>Your note joins your private shared archive, ready whenever you come back.</p></div><div className="note-card"><label htmlFor="love-note">My love,</label><textarea id="love-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{note.length} / 500</small><button onClick={saveNote} disabled={!note.trim()}>{saved ? 'Saved with love ♥' : 'Keep this note'} <Heart size={15}/></button></div></div></div></section>
+  </main>
+}
+
+function NotesPage() {
+  const [notes, setNotes] = useState([])
+  const [message, setMessage] = useState(() => storage.get('deborah-note') || '')
+  const [status, setStatus] = useState('loading')
+  const loadNotes = async () => {
+    try { const response = await fetch('/api/notes'); if (!response.ok) throw new Error(); setNotes((await response.json()).notes); setStatus('ready') }
+    catch { setStatus('error') }
+  }
+  useEffect(() => { loadNotes() }, [])
+  const submit = async event => {
+    event.preventDefault(); setStatus('saving')
+    try {
+      const response = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) })
+      if (!response.ok) throw new Error()
+      setMessage(''); storage.remove('deborah-note'); await loadNotes()
+    } catch { storage.set('deborah-note', message); setStatus('error') }
+  }
+  return <main className="notes-page shell"><div className="notes-heading"><span className="section-kicker">OUR LOVE, IN WORDS</span><h1>Notes worth keeping.</h1><p>A shared little archive, saved safely for both of you.</p></div>
+    <form className="note-card note-composer" onSubmit={submit}><label htmlFor="new-note">My love,</label><textarea id="new-note" value={message} onChange={event => setMessage(event.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{message.length} / 500</small><button disabled={!message.trim() || status === 'saving'}>{status === 'saving' ? 'Keeping…' : 'Keep this note'} <Heart size={15}/></button></div></form>
+    {status === 'loading' ? <p className="notes-status">Opening your notes…</p> : status === 'error' ? <p className="notes-status error">The notes backend is unavailable. Add MONGODB_URI to your environment, then try again.</p> : notes.length === 0 ? <p className="notes-status">Your first note will appear here.</p> : <section className="notes-grid" aria-label="Previous love notes">{notes.map(note => <article key={note._id}><Mail size={18}/><p>{note.message}</p><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}</time></article>)}</section>}
   </main>
 }
 
@@ -124,6 +156,7 @@ function GamesPage() {
   const peerRef = useRef(null)
   const connectionRef = useRef(null)
   const gameRef = useRef(game)
+  const guestView = current => ({ ...current, cards: { you: current.revealed ? current.cards.you : null, deborah: current.cards.deborah } })
 
   useEffect(() => { gameRef.current = game; storage.set('deborah-game', JSON.stringify(game)) }, [game])
   useEffect(() => () => peerRef.current?.destroy(), [])
@@ -132,7 +165,7 @@ function GamesPage() {
     connectionRef.current = connection
     connection.on('open', () => {
       setOnline(current => ({ ...current, role, status: 'connected', error: '' }))
-      if (role === 'host') connection.send({ type: 'STATE', game: gameRef.current })
+      if (role === 'host') connection.send({ type: 'STATE', game: guestView(gameRef.current) })
     })
     connection.on('data', data => {
       if (data.type === 'STATE') setGame(data.game)
@@ -140,7 +173,7 @@ function GamesPage() {
         const next = updateGame(gameRef.current, data.action)
         gameRef.current = next
         setGame(next)
-        connection.send({ type: 'STATE', game: next })
+        connection.send({ type: 'STATE', game: guestView(next) })
       }
     })
     connection.on('close', () => setOnline(current => ({ ...current, status: 'disconnected', error: 'The other player left the room.' })))
@@ -173,7 +206,7 @@ function GamesPage() {
     const next = updateGame(gameRef.current, action)
     gameRef.current = next
     setGame(next)
-    if (online.role === 'host' && online.status === 'connected') connectionRef.current?.send({ type: 'STATE', game: next })
+    if (online.role === 'host' && online.status === 'connected') connectionRef.current?.send({ type: 'STATE', game: guestView(next) })
   }
 
   const leaveRoom = () => { peerRef.current?.destroy(); peerRef.current = null; connectionRef.current = null; setOnline({ role: 'local', status: 'offline', code: '', error: '' }) }
@@ -187,9 +220,9 @@ function GamesPage() {
     </section>
     <section className="game-board">
       <div className="scorebar"><div><small>YOU'VE WON</small><strong>₦{score.you.toLocaleString()}</strong></div><span className="heart-chip">♥</span><div><small>DEBORAH'S WON</small><strong>₦{score.deborah.toLocaleString()}</strong></div></div>
-      <div className="table"><div className="player"><span>YOU</span><PlayingCard card={cards.you} hidden={!revealed} label="Your"/></div><div className="versus">VS</div><div className="player"><span>DEBORAH</span><PlayingCard card={cards.deborah} hidden={!revealed} label="Deborah's"/></div></div>
+      <div className="table"><div className="player"><span>{online.role === 'guest' ? 'YOUR BABE' : 'YOU'}</span><PlayingCard card={cards.you} hidden={!revealed && online.role === 'guest'} label="Your babe's"/></div><div className="versus">VS</div><div className="player"><span>{online.role === 'guest' ? 'YOU' : 'DEBORAH'}</span><PlayingCard card={cards.deborah} hidden={!revealed && online.role !== 'guest'} label="Deborah's"/></div></div>
       <div className={`result ${revealed ? 'show' : ''}`}>{message}</div>
-      <div className="controls"><div className="bet"><label htmlFor="bet">Stake this round</label><div><button onClick={() => dispatch({ type: 'BET', amount: -5 })}>−</button><span>₦{bet.toLocaleString()}</span><button onClick={() => dispatch({ type: 'BET', amount: 5 })}>+</button></div></div><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>{revealed ? 'Deal again' : 'Reveal cards'} <Sparkles size={17}/></button></div>
+      <div className="controls"><div className="bet"><label htmlFor="bet">Stake this round</label><div><button aria-label="Decrease stake" onClick={() => dispatch({ type: 'BET', amount: -5 })}>−</button><label className="sr-only" htmlFor="bet">Stake amount in naira</label><span className="bet-input-wrap">₦<input id="bet" type="number" min="1" max="10000000" value={bet} onChange={event => dispatch({ type: 'SET_BET', amount: event.target.value })}/></span><button aria-label="Increase stake" onClick={() => dispatch({ type: 'BET', amount: 5 })}>+</button></div></div><button className="primary deal" onClick={() => dispatch({ type: 'PLAY' })}>{revealed ? 'Deal again' : 'Show cards'} <Sparkles size={17}/></button></div>
     </section>
     <div className="balance"><div><span>RUNNING BALANCE</span><strong>{balance === 0 ? 'All square' : balance > 0 ? `Deborah owes you ₦${balance.toLocaleString()}` : `You owe Deborah ₦${Math.abs(balance).toLocaleString()}`}</strong></div><button onClick={() => dispatch({ type: 'RESET' })}><RotateCcw size={15}/> Reset score</button></div>
     <p className="local-note">{online.status === 'connected' ? 'Both devices are synchronized live. Either player can deal or change the stake.' : 'Play locally, or start a private room to synchronize two devices — no account required.'}</p>
@@ -198,5 +231,5 @@ function GamesPage() {
 
 export default function App() {
   const [page, setPage] = useState('home')
-  return <AppErrorBoundary><Nav page={page} setPage={setPage}/>{page === 'home' ? <HomePage setPage={setPage}/> : <GamesPage/>}<footer><div className="shell">Made for Deborah <span>♥</span><small>One little website. A whole lot of love.</small></div></footer></AppErrorBoundary>
+  return <AppErrorBoundary><Nav page={page} setPage={setPage}/>{page === 'home' ? <HomePage setPage={setPage}/> : page === 'games' ? <GamesPage/> : <NotesPage/>}<footer><div className="shell">Made for Deborah <span>♥</span><small>One little website. A whole lot of love.</small></div></footer></AppErrorBoundary>
 }
