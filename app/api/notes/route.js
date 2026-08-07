@@ -22,8 +22,8 @@ function errorResponse(error) {
 
 const editorFor = recipient => recipient === 'brume' ? 'deborah' : 'brume'
 const editCodes = () => ({
-  brume: process.env.BRUME_NOTE_CODE || '1778',
-  deborah: process.env.DEBORAH_NOTE_CODE || '8991',
+  brume: process.env.BRUME_NOTE_CODE ,
+  deborah: process.env.DEBORAH_NOTE_CODE,
 })
 
 function authorized(note, code) {
