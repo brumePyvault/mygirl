@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 
 const roomSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true, index: true },
+  gameType: { type: String, enum: ['higher-lower', 'whot'], default: 'higher-lower', index: true },
   game: { type: mongoose.Schema.Types.Mixed, required: true },
   players: [{ type: String, enum: ['brume', 'deborah'] }],
   expiresAt: { type: Date, required: true, index: { expires: 0 } },
@@ -18,6 +19,7 @@ async function connect() {
 
 function updateGame(game, action) {
   if (!game || !action) return game
+  if (action.gameType === 'whot') return updateWhotGame(game, action)
   if (action.type === 'RESET') return action.game
   if (action.type === 'PLAY' && game.phase === 'complete') return action.game
   if (game.phase !== 'betting' || action.actor !== game.turn) return game
@@ -43,6 +45,32 @@ function updateGame(game, action) {
   return { ...game, committed: matched, phase: 'complete', revealed: true, roundResult: { winner, amount: matched[loser], reason: 'cards' }, score: { ...game.score, [winner]: game.score[winner] + matched[loser] }, message: difference > 0 ? `Stake accepted. Brume wins ₦${matched[loser].toLocaleString()}!` : `Stake accepted. Deborah wins ₦${matched[loser].toLocaleString()}!` }
 }
 
+const nextPlayer = player => player === 'brume' ? 'deborah' : 'brume'
+
+function updateWhotGame(game, action) {
+  if (action.type === 'RESET' && action.game?.hands && action.game?.pile) return action.game
+  const player = action.player
+  if (!['brume', 'deborah'].includes(player) || game.winner || player !== game.turn) return game
+  if (action.type === 'WHOT_DRAW') {
+    let deck = [...game.deck]
+    let pile = [...game.pile]
+    if (!deck.length && pile.length > 1) { deck = pile.slice(0, -1); pile = pile.slice(-1) }
+    const card = deck.pop()
+    if (!card) return game
+    const next = nextPlayer(player)
+    return { ...game, deck, pile, hands: { ...game.hands, [player]: [...game.hands[player], card] }, turn: next, message: `${player === 'brume' ? 'Brume' : 'Deborah'} drew a card. ${next === 'brume' ? 'Brume' : 'Deborah'} is up.`, motion: 'draw' }
+  }
+  if (action.type !== 'WHOT_PLAY') return game
+  const card = game.hands[player].find(item => item.id === action.cardId)
+  const top = game.pile.at(-1)
+  const playable = card && (card.name === 'whot' || card.number === top.number || card.name === (game.calledShape || top.name))
+  if (!playable || (card.name === 'whot' && !['circle', 'triangle', 'cross', 'square', 'star'].includes(action.shape))) return game
+  const hand = game.hands[player].filter(item => item.id !== card.id)
+  const winner = hand.length === 0 ? player : ''
+  const next = nextPlayer(player)
+  return { ...game, hands: { ...game.hands, [player]: hand }, pile: [...game.pile, card], turn: winner ? player : next, calledShape: card.name === 'whot' ? action.shape : '', winner, message: winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : `${next === 'brume' ? 'Brume' : 'Deborah'}, your turn.`, motion: 'play' }
+}
+
 const response = (body, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 
 export async function GET(request) {
@@ -50,13 +78,14 @@ export async function GET(request) {
     await connect()
     const code = request.nextUrl.searchParams.get('code')?.trim().toUpperCase()
     const player = request.nextUrl.searchParams.get('player')?.toLowerCase()
-    const room = code && await Room.findOne({ code, expiresAt: { $gt: new Date() } })
+    const gameType = request.nextUrl.searchParams.get('gameType')
+    const room = code && await Room.findOne({ code, expiresAt: { $gt: new Date() }, ...(gameType ? { gameType } : {}) })
     if (!room) return response({ error: 'Room not found or expired.' }, 404)
     if (['brume', 'deborah'].includes(player) && !room.players.includes(player)) {
       room.players.push(player)
       await room.save()
     }
-    return response({ game: room.game, code: room.code, expiresAt: room.expiresAt, ready: room.players.length > 1 })
+    return response({ game: room.game, gameType: room.gameType, code: room.code, expiresAt: room.expiresAt, ready: room.players.length > 1 })
   } catch {
     return response({ error: 'Could not reach the room service.' }, 503)
   }
@@ -65,9 +94,10 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await connect()
-    const { code, game, player } = await request.json()
-    if (!/^[A-Z0-9]{6}$/.test(code || '') || !game?.score || !game?.cards) return response({ error: 'Invalid room.' }, 400)
-    const room = await Room.create({ code, game, players: [player], expiresAt: new Date(Date.now() + ROOM_LIFETIME) })
+    const { code, game, player, gameType = 'higher-lower' } = await request.json()
+    const validGame = gameType === 'whot' ? game?.hands && game?.pile && game?.deck : game?.score && game?.cards
+    if (!/^[A-Z0-9]{6}$/.test(code || '') || !['brume', 'deborah'].includes(player) || !validGame) return response({ error: 'Invalid room.' }, 400)
+    const room = await Room.create({ code, game, gameType, players: [player], expiresAt: new Date(Date.now() + ROOM_LIFETIME) })
     return response({ game: room.game, code: room.code, expiresAt: room.expiresAt }, 201)
   } catch (error) {
     if (error?.code === 11000) return response({ error: 'That room code is already in use.' }, 409)
