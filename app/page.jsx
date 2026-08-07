@@ -2,7 +2,7 @@
 
 import { Component, useEffect, useRef, useState } from 'react'
 import Peer from 'peerjs'
-import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, RotateCcw, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, Pencil, RotateCcw, Sparkles, Trash2, Users } from 'lucide-react'
 
 const suits = [
   { symbol: '♠', name: 'spades', color: 'black' }, { symbol: '♥', name: 'hearts', color: 'red' },
@@ -88,60 +88,60 @@ function Nav({ page, setPage }) {
   </nav></header>
 }
 
+function RecipientPicker({ value, onChange }) {
+  return <fieldset className="recipient-picker"><legend>This note is for</legend><button type="button" className={value === 'deborah' ? 'selected her' : ''} onClick={() => onChange('deborah')}>♡ Deborah</button><button type="button" className={value === 'brume' ? 'selected him' : ''} onClick={() => onChange('brume')}>♠ Brume</button></fieldset>
+}
+
 function HomePage({ setPage }) {
   const [note, setNote] = useState(() => storage.get('deborah-note') || '')
+  const [recipient, setRecipient] = useState('deborah')
   const [saved, setSaved] = useState(false)
   const saveNote = async () => {
     storage.set('deborah-note', note)
     try {
-      const response = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: note }) })
+      const response = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: note, recipient }) })
       if (!response.ok) throw new Error('Save failed')
       setNote(''); storage.remove('deborah-note'); setSaved(true); setTimeout(() => setSaved(false), 1800)
     } catch { setPage('notes') }
   }
   return <main>
     <section className="hero shell">
-      <div className="hero-copy">
-        <div className="eyebrow"><Sparkles size={15}/> A corner of the internet, just for us</div>
-        <h1>Welcome, <em>Deborah.</em></h1>
-        <p className="lead">I made this little place to hold our favorite memories, silly games, and all the words I never want to leave unsaid.</p>
-        <div className="hero-actions"><button className="primary" onClick={() => setPage('games')}>Play a game <ArrowRight size={18}/></button><button className="secondary" onClick={() => setPage('notes')}>Leave a love note</button></div>
-        <div className="promise"><Heart size={18} fill="currentColor"/><span><strong>Made with intention</strong><small>For the quiet days, loud laughs, and everything in between.</small></span></div>
-      </div>
-      <div className="hero-art" aria-label="A love letter for Deborah">
-        <div className="orbit orbit-one">✦</div><div className="orbit orbit-two">♡</div>
-        <div className="letter"><div className="letter-stamp">D</div><span>my dearest</span><h2>For you,<br/>always.</h2><p>— with all my love</p></div>
-        <div className="flower f1">✿</div><div className="flower f2">❀</div><div className="flower f3">✿</div>
-      </div>
+      <div className="hero-copy"><div className="eyebrow"><Sparkles size={15}/> A corner of the internet, just for us</div><h1>Welcome, <em>Deborah.</em></h1><p className="lead">I made this little place to hold our favorite memories, silly games, and all the words I never want to leave unsaid.</p><div className="hero-actions"><button className="primary" onClick={() => setPage('games')}>Play a game <ArrowRight size={18}/></button><button className="secondary" onClick={() => setPage('notes')}>Leave a love note</button></div><div className="promise"><Heart size={18} fill="currentColor"/><span><strong>Made with intention</strong><small>For the quiet days, loud laughs, and everything in between.</small></span></div></div>
+      <div className="hero-art" aria-label="A love letter for Deborah"><div className="orbit orbit-one">✦</div><div className="orbit orbit-two">♡</div><div className="letter"><div className="letter-stamp">D</div><span>my dearest</span><h2>For you,<br/>always.</h2><p>— with all my love</p></div><div className="flower f1">✿</div><div className="flower f2">❀</div><div className="flower f3">✿</div></div>
     </section>
-    <section className="moments shell">
-      <div><span className="section-kicker">OURS TO KEEP</span><h2>Little things, big love.</h2></div>
-      <div className="moment-grid"><article><span>01</span><h3>Play together</h3><p>Settle the score with a quick round of Higher or Lower.</p><button onClick={() => setPage('games')}>Open games <ArrowRight size={15}/></button></article><article><span>02</span><h3>Write it down</h3><p>Leave a note for the words worth keeping close.</p><button onClick={() => setPage('notes')}>Write a note <ArrowRight size={15}/></button></article><article><span>03</span><h3>More to come</h3><p>This is only the first page of something that keeps growing.</p><div className="soon">SOON, MY LOVE</div></article></div>
-    </section>
-    <section className="notes-section" id="notes"><div className="shell note-layout"><div><span className="section-kicker">A NOTE FOR DEBORAH</span><h2>Some things deserve<br/>to be written down.</h2><p>Your note joins your private shared archive, ready whenever you come back.</p></div><div className="note-card"><label htmlFor="love-note">My love,</label><textarea id="love-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{note.length} / 500</small><button onClick={saveNote} disabled={!note.trim()}>{saved ? 'Saved with love ♥' : 'Keep this note'} <Heart size={15}/></button></div></div></div></section>
+    <section className="moments shell"><div><span className="section-kicker">OURS TO KEEP</span><h2>Little things, big love.</h2></div><div className="moment-grid"><article><span>01</span><h3>Play together</h3><p>Settle the score with a quick round of Higher or Lower.</p><button onClick={() => setPage('games')}>Open games <ArrowRight size={15}/></button></article><article><span>02</span><h3>Write it down</h3><p>Leave a note for the words worth keeping close.</p><button onClick={() => setPage('notes')}>Write a note <ArrowRight size={15}/></button></article><article><span>03</span><h3>More to come</h3><p>This is only the first page of something that keeps growing.</p><div className="soon">SOON, MY LOVE</div></article></div></section>
+    <section className="notes-section" id="notes"><div className="shell note-layout"><div><span className="section-kicker">A NOTE FOR US</span><h2>Some things deserve<br/>to be written down.</h2><p>Your note joins your private shared archive, ready whenever you come back.</p></div><div className="note-card"><RecipientPicker value={recipient} onChange={setRecipient}/><label htmlFor="love-note">My love,</label><textarea id="love-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{note.length} / 500</small><button onClick={saveNote} disabled={!note.trim()}>{saved ? 'Saved with love ♥' : 'Keep this note'} <Heart size={15}/></button></div></div></div></section>
   </main>
 }
 
 function NotesPage() {
   const [notes, setNotes] = useState([])
   const [message, setMessage] = useState(() => storage.get('deborah-note') || '')
+  const [recipient, setRecipient] = useState('deborah')
   const [status, setStatus] = useState('loading')
-  const loadNotes = async () => {
-    try { const response = await fetch('/api/notes'); if (!response.ok) throw new Error(); setNotes((await response.json()).notes); setStatus('ready') }
-    catch { setStatus('error') }
-  }
+  const [editing, setEditing] = useState('')
+  const [codePrompt, setCodePrompt] = useState(null)
+  const [code, setCode] = useState('')
+  const [actionError, setActionError] = useState('')
+  const loadNotes = async () => { try { const response = await fetch('/api/notes'); if (!response.ok) throw new Error(); setNotes((await response.json()).notes); setStatus('ready') } catch { setStatus('error') } }
   useEffect(() => { loadNotes() }, [])
   const submit = async event => {
     event.preventDefault(); setStatus('saving')
-    try {
-      const response = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) })
-      if (!response.ok) throw new Error()
-      setMessage(''); storage.remove('deborah-note'); await loadNotes()
-    } catch { storage.set('deborah-note', message); setStatus('error') }
+    try { const response = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, recipient }) }); if (!response.ok) throw new Error(); setMessage(''); storage.remove('deborah-note'); await loadNotes() }
+    catch { storage.set('deborah-note', message); setStatus('error') }
+  }
+  const requestAction = (note, action) => { setCode(''); setActionError(''); setEditing(note.message); setCodePrompt({ note, action }) }
+  const confirmAction = async event => {
+    event.preventDefault(); setActionError('')
+    const { note, action } = codePrompt
+    const response = await fetch('/api/notes', { method: action === 'delete' ? 'DELETE' : 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: note._id, code, message: editing }) })
+    if (!response.ok) { const data = await response.json().catch(() => ({})); setActionError(data.error || 'That did not work.'); return }
+    setCodePrompt(null); await loadNotes()
   }
   return <main className="notes-page shell"><div className="notes-heading"><span className="section-kicker">OUR LOVE, IN WORDS</span><h1>Notes worth keeping.</h1><p>A shared little archive, saved safely for both of you.</p></div>
-    <form className="note-card note-composer" onSubmit={submit}><label htmlFor="new-note">My love,</label><textarea id="new-note" value={message} onChange={event => setMessage(event.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{message.length} / 500</small><button disabled={!message.trim() || status === 'saving'}>{status === 'saving' ? 'Keeping…' : 'Keep this note'} <Heart size={15}/></button></div></form>
-    {status === 'loading' ? <p className="notes-status">Opening your notes…</p> : status === 'error' ? <p className="notes-status error">The notes backend is unavailable. Add MONGODB_URI to your environment, then try again.</p> : notes.length === 0 ? <p className="notes-status">Your first note will appear here.</p> : <section className="notes-grid" aria-label="Previous love notes">{notes.map(note => <article key={note._id}><Mail size={18}/><p>{note.message}</p><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}</time></article>)}</section>}
+    <form className="note-card note-composer" onSubmit={submit}><RecipientPicker value={recipient} onChange={setRecipient}/><label htmlFor="new-note">My love,</label><textarea id="new-note" value={message} onChange={event => setMessage(event.target.value)} placeholder="Today I wanted to remind you that…" maxLength={500}/><div><small>{message.length} / 500</small><button disabled={!message.trim() || status === 'saving'}>{status === 'saving' ? 'Keeping…' : 'Keep this note'} <Heart size={15}/></button></div></form>
+    {status === 'loading' ? <p className="notes-status">Opening your notes…</p> : status === 'error' ? <p className="notes-status error">The notes backend is unavailable. Add MONGODB_URI to your environment, then try again.</p> : notes.length === 0 ? <p className="notes-status">Your first note will appear here.</p> : <section className="notes-grid" aria-label="Previous love notes">{notes.map(note => <article key={note._id} className={`note-${note.recipient || 'deborah'}`}><div className="note-top"><span className="recipient-badge">{note.recipient === 'brume' ? '♠ FOR BRUME' : '♡ FOR DEBORAH'}</span><span className="note-actions"><button aria-label="Edit note" onClick={() => requestAction(note, 'edit')}><Pencil size={14}/></button><button aria-label="Delete note" onClick={() => requestAction(note, 'delete')}><Trash2 size={14}/></button></span></div><p>{note.message}</p><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}</time></article>)}</section>}
+    {codePrompt && <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && setCodePrompt(null)}><form className="code-modal" onSubmit={confirmAction} role="dialog" aria-modal="true" aria-labelledby="code-title"><span>{codePrompt.note.recipient === 'brume' ? '♠' : '♡'}</span><h2 id="code-title">{codePrompt.action === 'delete' ? 'Delete this note?' : 'Edit this note'}</h2><p>{codePrompt.note.recipient === 'brume' ? 'Only Deborah can change notes for Brume.' : 'Only Brume can change notes for Deborah.'}</p>{codePrompt.action === 'edit' && <textarea maxLength={500} value={editing} onChange={event => setEditing(event.target.value)} aria-label="Edited note"/>}<input type="password" inputMode="numeric" autoFocus placeholder="Enter your 4-digit code" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 4))}/>{actionError && <small>{actionError}</small>}<div><button type="button" onClick={() => setCodePrompt(null)}>Cancel</button><button className="confirm" disabled={code.length !== 4 || (codePrompt.action === 'edit' && !editing.trim())}>{codePrompt.action === 'delete' ? 'Delete note' : 'Save changes'}</button></div></form></div>}
   </main>
 }
 
@@ -153,6 +153,13 @@ function PlayingCard({ card, hidden, label }) {
 function GamesPage() {
   const [game, setGame] = useState(loadGame)
   const [online, setOnline] = useState({ role: 'local', status: 'offline', code: '', error: '' })
+  const [player, setPlayer] = useState(() => storage.get('deborah-player') || '')
+  const [savedRoom, setSavedRoom] = useState(() => {
+    try {
+      const room = JSON.parse(storage.get('deborah-room'))
+      return room && Date.now() - room.lastActive < 5 * 60 * 1000 ? room : null
+    } catch { return null }
+  })
   const [joinCode, setJoinCode] = useState('')
   const [copied, setCopied] = useState(false)
   const peerRef = useRef(null)
@@ -162,6 +169,22 @@ function GamesPage() {
 
   useEffect(() => { gameRef.current = game; storage.set('deborah-game', JSON.stringify(game)) }, [game])
   useEffect(() => () => peerRef.current?.destroy(), [])
+  useEffect(() => {
+    if (!player) return
+    storage.set('deborah-player', player)
+    if (online.role !== 'local') {
+      const room = { role: online.role, code: online.code, player, lastActive: Date.now() }
+      storage.set('deborah-room', JSON.stringify(room)); setSavedRoom(room)
+    }
+  }, [online.role, online.code, online.status, player])
+  useEffect(() => {
+    if (online.role === 'local') return
+    const heartbeat = setInterval(() => {
+      const room = { role: online.role, code: online.code, player, lastActive: Date.now() }
+      storage.set('deborah-room', JSON.stringify(room))
+    }, 15000)
+    return () => clearInterval(heartbeat)
+  }, [online.role, online.code, player])
 
   const attachConnection = (connection, role) => {
     connectionRef.current = connection
@@ -182,9 +205,10 @@ function GamesPage() {
     connection.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'The connection was interrupted. Try joining again.' })))
   }
 
-  const hostGame = () => {
+  const hostGame = (roomCode) => {
+    if (!player) return
     peerRef.current?.destroy()
-    const code = Math.random().toString(36).slice(2, 8).toUpperCase()
+    const code = roomCode || Math.random().toString(36).slice(2, 8).toUpperCase()
     const peer = new Peer(`deborah-${code.toLowerCase()}`)
     peerRef.current = peer
     setOnline({ role: 'host', status: 'waiting', code, error: '' })
@@ -192,9 +216,9 @@ function GamesPage() {
     peer.on('error', () => setOnline(current => ({ ...current, status: 'error', error: 'Could not create the room. Please try again.' })))
   }
 
-  const joinGame = () => {
-    const code = joinCode.trim().replace(/[^a-z0-9]/gi, '').toUpperCase()
-    if (!code) return
+  const joinGame = (roomCode) => {
+    const code = (typeof roomCode === 'string' ? roomCode : joinCode).trim().replace(/[^a-z0-9]/gi, '').toUpperCase()
+    if (!code || !player) return
     peerRef.current?.destroy()
     const peer = new Peer()
     peerRef.current = peer
@@ -211,13 +235,19 @@ function GamesPage() {
     if (online.role === 'host' && online.status === 'connected') connectionRef.current?.send({ type: 'STATE', game: guestView(next) })
   }
 
-  const leaveRoom = () => { peerRef.current?.destroy(); peerRef.current = null; connectionRef.current = null; setOnline({ role: 'local', status: 'offline', code: '', error: '' }) }
+  const leaveRoom = () => { peerRef.current?.destroy(); peerRef.current = null; connectionRef.current = null; storage.remove('deborah-room'); setSavedRoom(null); setOnline({ role: 'local', status: 'offline', code: '', error: '' }) }
+  const returnToRoom = () => {
+    if (!savedRoom) return
+    setPlayer(savedRoom.player)
+    if (savedRoom.role === 'host') hostGame(savedRoom.code)
+    else { setJoinCode(savedRoom.code); joinGame(savedRoom.code) }
+  }
   const { score, bet, cards, revealed, message } = game
   const balance = score.you - score.deborah
   return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw. Highest card wins. Ace is high.</p></div>
     <section className="online-panel">
-      <div className="online-intro"><span><Users size={18}/> PLAY ON TWO DEVICES</span><p>Start a private room and share the six-character code, or join Deborah's room.</p></div>
-      {online.role === 'local' ? <div className="room-actions"><button className="host-button" onClick={hostGame}><Link2 size={16}/> Start a room</button><span>or</span><div className="join-control"><input aria-label="Room code" value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())} onKeyDown={event => event.key === 'Enter' && joinGame()} placeholder="ROOM CODE" maxLength={6}/><button onClick={joinGame}>Join</button></div></div> : <div className="room-status"><div><small>{online.status === 'connected' ? 'CONNECTED — GAME IS LIVE' : online.status === 'waiting' ? 'WAITING FOR DEBORAH' : online.status.toUpperCase()}</small><strong>{online.code}</strong></div>{online.status === 'waiting' && <button className="copy-code" onClick={() => { navigator.clipboard.writeText(online.code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy code'}</button>}<button className="leave" onClick={leaveRoom}>Leave room</button></div>}
+      <div className="online-intro"><span><Users size={18}/> PLAY ON TWO DEVICES</span><p>Choose who you are. Your room stays returnable for five minutes.</p></div>
+      {online.role === 'local' ? <div className="online-setup"><div className="player-picker" aria-label="Choose player"><button className={player === 'brume' ? 'selected' : ''} onClick={() => setPlayer('brume')}>I’m Brume</button><button className={player === 'deborah' ? 'selected' : ''} onClick={() => setPlayer('deborah')}>I’m Deborah</button></div>{savedRoom && <button className="return-room" onClick={returnToRoom}>{savedRoom.player === 'brume' ? 'Brume' : 'Deborah'} is returning to {savedRoom.code}</button>}<div className="room-actions"><button className="host-button" onClick={() => hostGame()} disabled={!player}><Link2 size={16}/> Start a room</button><span>or</span><div className="join-control"><input aria-label="Room code" value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())} onKeyDown={event => event.key === 'Enter' && joinGame()} placeholder="ROOM CODE" maxLength={6}/><button onClick={joinGame} disabled={!player}>Join</button></div></div></div> : <div className="room-status"><div><small>{online.status === 'connected' ? `${player.toUpperCase()} — GAME IS LIVE` : online.status === 'waiting' ? `WAITING FOR ${player === 'brume' ? 'DEBORAH' : 'BRUME'}` : online.status.toUpperCase()}</small><strong>{online.code}</strong></div>{online.status === 'waiting' && <button className="copy-code" onClick={() => { navigator.clipboard.writeText(online.code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy code'}</button>}<button className="leave" onClick={leaveRoom}>Leave room</button></div>}
       {online.error && <p className="connection-error">{online.error}</p>}
     </section>
     <section className="game-board">
