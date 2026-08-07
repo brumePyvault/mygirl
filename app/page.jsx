@@ -1,7 +1,7 @@
 'use client'
 
 import { Component, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Copy, Gamepad2, Heart, Home, Link2, Mail, Pencil, RotateCcw, Sparkles, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Copy, Gamepad2, Heart, Home, Layers3, Link2, Mail, Pencil, RotateCcw, Sparkles, Trash2, Trophy, Users } from 'lucide-react'
 
 const suits = [
   { symbol: '♠', name: 'spades', color: 'black' }, { symbol: '♥', name: 'hearts', color: 'red' },
@@ -140,7 +140,7 @@ function Nav({ page, setPage }) {
     <button className="brand" onClick={() => setPage('home')} aria-label="Deborah, home"><span>D</span><strong>Deborah</strong></button>
     <div className="nav-links">
       <button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}><Home size={16}/> Home</button>
-      <button className={page === 'games' ? 'active' : ''} onClick={() => setPage('games')}><Gamepad2 size={16}/> Games</button>
+      <button className={page.startsWith('game') ? 'active' : ''} onClick={() => setPage('games')}><Gamepad2 size={16}/> Games</button>
       <button className={page === 'notes' ? 'active' : ''} onClick={() => setPage('notes')}><Mail size={16}/> Notes</button>
     </div>
     <button className="love-note-link" onClick={() => setPage('notes')}><Mail size={16}/> Love notes</button>
@@ -209,7 +209,7 @@ function PlayingCard({ card, hidden, label }) {
   return <div className={`playing-card ${card.color}`} aria-label={`${card.label} of ${card.name}`}><div className="corner"><b>{card.label}</b><i>{card.symbol}</i></div><div className="suit">{card.symbol}</div><div className="corner bottom"><b>{card.label}</b><i>{card.symbol}</i></div></div>
 }
 
-function GamesPage() {
+function HigherLowerGame({ onBack }) {
   const [game, setGame] = useState(loadGame)
   const [raiseAmount, setRaiseAmount] = useState(100)
   const [online, setOnline] = useState({ role: 'local', status: 'offline', code: '', error: '' })
@@ -311,7 +311,7 @@ function GamesPage() {
   const canAct = phase === 'betting' && actor === turn && (online.role === 'local' || online.status === 'connected')
   const amountToMatch = Math.max(0, bet - committed[actor])
   const balance = score.you - score.deborah
-  return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw from a 52-card deck. Highest card wins. Ace is high.</p></div>
+  return <main className="game-page shell"><button className="back-to-games" onClick={onBack}><ArrowLeft size={16}/> All games</button><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw from a 52-card deck. Highest card wins. Ace is high.</p></div>
     <section className="online-panel">
       <div className="online-intro"><span><Users size={18}/> PLAY FROM ANYWHERE</span><p>Rooms work across different Wi-Fi and mobile networks and remain available for 24 hours.</p></div>
       {online.role === 'local' ? <div className="online-setup"><div className="player-picker" aria-label="Choose player"><button className={player === 'brume' ? 'selected' : ''} onClick={() => setPlayer('brume')}>I’m Brume</button><button className={player === 'deborah' ? 'selected' : ''} onClick={() => setPlayer('deborah')}>I’m Deborah</button></div>{savedRoom && <button className="return-room" onClick={returnToRoom}>{savedRoom.player === 'brume' ? 'Brume' : 'Deborah'} is returning to {savedRoom.code}</button>}<div className="room-actions"><button className="host-button" onClick={() => hostGame()} disabled={!player}><Link2 size={16}/> Start a room</button><span>or</span><div className="join-control"><input aria-label="Room code" value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())} onKeyDown={event => event.key === 'Enter' && joinGame()} placeholder="ROOM CODE" maxLength={6}/><button onClick={joinGame} disabled={!player}>Join</button></div></div></div> : <div className="room-status"><div><small>{online.status === 'connected' ? `${player.toUpperCase()} — GAME IS LIVE` : online.status === 'waiting' ? `WAITING FOR ${player === 'brume' ? 'DEBORAH' : 'BRUME'}` : online.status.toUpperCase()}</small><strong>{online.code}</strong></div>{online.status === 'waiting' && <button className="copy-code" onClick={() => { navigator.clipboard.writeText(online.code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy code'}</button>}<button className="leave" onClick={leaveRoom}>Leave room</button></div>}
@@ -329,7 +329,76 @@ function GamesPage() {
   </main>
 }
 
+const whotShapes = [
+  { name: 'circle', symbol: '●', color: '#cf4d58' }, { name: 'triangle', symbol: '▲', color: '#4c7392' },
+  { name: 'cross', symbol: '✚', color: '#ad6d35' }, { name: 'square', symbol: '■', color: '#667b55' }, { name: 'star', symbol: '★', color: '#936785' },
+]
+const makeWhotDeck = () => [...whotShapes.flatMap(shape => [1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 14].map(number => ({ ...shape, number, id: `${shape.name}-${number}-${Math.random()}` }))), ...Array.from({ length: 5 }, (_, index) => ({ name: 'whot', symbol: 'W', number: 20, color: '#803f45', id: `whot-${index}-${Math.random()}` }))]
+const canPlayWhot = (card, top, calledShape) => card.name === 'whot' || card.number === top.number || card.name === (calledShape || top.name)
+const whotCardLabel = card => card.name === 'whot' ? 'WHOT 20' : `${card.number} ${card.name}`
+
+function WhotCard({ card, hidden = false, playable = false, onClick, entering = false }) {
+  if (hidden) return <div className="whot-card whot-back" aria-label="Hidden Whot card"><Heart fill="currentColor"/></div>
+  return <button className={`whot-card ${playable ? 'playable' : ''} ${entering ? 'card-entering' : ''}`} style={{ '--card-color': card.color }} onClick={onClick} disabled={!onClick} aria-label={whotCardLabel(card)}><b>{card.number}</b><span>{card.symbol}</span><i>{card.name === 'whot' ? 'WHOT' : card.name}</i><b className="whot-bottom">{card.number}</b></button>
+}
+
+function createWhotGame() {
+  const cards = shuffle(makeWhotDeck()); const top = cards.pop()
+  return { hands: { brume: cards.splice(0, 7), deborah: cards.splice(0, 7) }, pile: [top], deck: cards, turn: 'brume', calledShape: '', winner: '', message: "Brume, you're up. Match the shape or number.", motion: 'deal' }
+}
+
+function WhotGame({ onBack }) {
+  const [game, setGame] = useState(createWhotGame)
+  const [choosing, setChoosing] = useState(null)
+  const [motionCard, setMotionCard] = useState(null)
+  const top = game.pile.at(-1)
+  const nextPlayer = player => player === 'brume' ? 'deborah' : 'brume'
+  const finishPlay = (player, card, shape = '') => {
+    setGame(current => {
+      const hand = current.hands[player].filter(item => item.id !== card.id)
+      const winner = hand.length === 0 ? player : ''
+      return { ...current, hands: { ...current.hands, [player]: hand }, pile: [...current.pile, card], turn: winner ? player : nextPlayer(player), calledShape: card.name === 'whot' ? shape : '', winner, message: winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : `${nextPlayer(player) === 'brume' ? 'Brume' : 'Deborah'}, your turn.`, motion: 'play' }
+    })
+    setMotionCard(card.id); setTimeout(() => setMotionCard(null), 500)
+  }
+  const play = (player, card) => {
+    if (game.winner || player !== game.turn || !canPlayWhot(card, top, game.calledShape)) return
+    if (card.name === 'whot') { setChoosing({ player, card }); return }
+    finishPlay(player, card)
+  }
+  const draw = player => {
+    if (game.winner || player !== game.turn) return
+    setGame(current => {
+      let deckCards = [...current.deck]
+      let pile = current.pile
+      if (!deckCards.length && pile.length > 1) { deckCards = shuffle(pile.slice(0, -1)); pile = pile.slice(-1) }
+      const card = deckCards.pop()
+      if (!card) return current
+      const next = nextPlayer(player)
+      return { ...current, deck: deckCards, pile, hands: { ...current.hands, [player]: [...current.hands[player], card] }, turn: next, message: `${player === 'brume' ? 'Brume' : 'Deborah'} drew a card. ${next === 'brume' ? 'Brume' : 'Deborah'} is up.`, motion: 'draw' }
+    })
+  }
+  return <main className="whot-page shell"><button className="back-to-games" onClick={onBack}><ArrowLeft size={16}/> All games</button><div className="game-heading"><span className="section-kicker">A NIGERIAN CLASSIC</span><h1>Whot</h1><p>Match the shape or number. Play a Whot card to call the next shape.</p></div>
+    <section className={`whot-table motion-${game.motion}`}>
+      <div className="whot-status"><span className={game.turn === 'deborah' ? 'active' : ''}>DEBORAH · {game.hands.deborah.length} CARDS</span><strong>{game.winner ? <><Trophy size={18}/> {game.message}</> : game.message}</strong><span className={game.turn === 'brume' ? 'active' : ''}>BRUME · {game.hands.brume.length} CARDS</span></div>
+      <div className="whot-hand opponent" aria-label="Deborah's hand">{game.hands.deborah.map(card => <WhotCard key={card.id} card={card} playable={game.turn === 'deborah' && canPlayWhot(card, top, game.calledShape)} onClick={game.turn === 'deborah' ? () => play('deborah', card) : undefined}/>)}</div>
+      <div className="whot-center"><button className="draw-pile" onClick={() => draw(game.turn)} disabled={!!game.winner}><span>{game.deck.length}</span><small>DRAW</small></button><div className="discard"><WhotCard card={top} entering={motionCard === top.id}/>{game.calledShape && <span className="called-shape">Called: {whotShapes.find(shape => shape.name === game.calledShape)?.symbol} {game.calledShape}</span>}</div></div>
+      <div className="whot-hand" aria-label="Brume's hand">{game.hands.brume.map(card => <WhotCard key={card.id} card={card} playable={game.turn === 'brume' && canPlayWhot(card, top, game.calledShape)} onClick={game.turn === 'brume' ? () => play('brume', card) : undefined}/>)}</div>
+      {game.winner && <button className="primary whot-again" onClick={() => { setGame(createWhotGame()); setChoosing(null) }}><RotateCcw size={16}/> Play again</button>}
+    </section>
+    {choosing && <div className="modal-backdrop"><div className="shape-modal" role="dialog" aria-modal="true"><Sparkles/><h2>Call a shape</h2><p>What must the next player match?</p><div>{whotShapes.map(shape => <button key={shape.name} style={{ '--shape-color': shape.color }} onClick={() => { finishPlay(choosing.player, choosing.card, shape.name); setChoosing(null) }}><span>{shape.symbol}</span>{shape.name}</button>)}</div></div></div>}
+    <aside className="whot-rules"><strong>QUICK RULES</strong><span>Match shape</span><i>or</i><span>Match number</span><i>or</i><span>Play WHOT</span></aside>
+  </main>
+}
+
+function GamesGallery({ openGame }) {
+  return <main className="games-gallery shell"><div className="gallery-heading"><span className="section-kicker">JUST THE TWO OF US</span><h1>Pick a game.</h1><p>A tiny date-night arcade for quiet evenings, loud laughs, and playful rivalries.</p></div><section className="game-grid">
+    <article className="game-tile higher-tile"><div className="tile-art"><div className="floating-card card-one">A<span>♥</span></div><div className="floating-card card-two">K<span>♠</span></div><Sparkles/></div><div className="tile-copy"><span className="game-tag">CARDS · BLUFFING</span><h2>Higher or Lower</h2><p>Raise the stakes, call the bluff, and see whose card comes out on top.</p><button className="primary" onClick={() => openGame('game-higher')}>Play now <ArrowRight size={17}/></button></div></article>
+    <article className="game-tile whot-tile"><div className="tile-art"><div className="whot-preview"><b>20</b><span>W</span><i>WHOT</i></div><div className="shape-rain"><span>●</span><span>▲</span><span>★</span><span>■</span></div></div><div className="tile-copy"><span className="game-tag">CLASSIC · STRATEGY</span><h2>Whot</h2><p>Match shapes and numbers, call your suit, and race to empty your hand.</p><button className="primary" onClick={() => openGame('game-whot')}>Play now <ArrowRight size={17}/></button></div></article>
+  </section><div className="gallery-note"><Layers3 size={18}/><span><strong>Made for passing the phone.</strong> Take turns, keep your hand close, and play fair-ish.</span></div></main>
+}
+
 export default function App() {
   const [page, setPage] = useState('home')
-  return <AppErrorBoundary><Nav page={page} setPage={setPage}/>{page === 'home' ? <HomePage setPage={setPage}/> : page === 'games' ? <GamesPage/> : <NotesPage/>}<footer><div className="shell">Made for Deborah <span>♥</span><small>One little website. A whole lot of love.</small></div></footer></AppErrorBoundary>
+  return <AppErrorBoundary><Nav page={page} setPage={setPage}/>{page === 'home' ? <HomePage setPage={setPage}/> : page === 'games' ? <GamesGallery openGame={setPage}/> : page === 'game-higher' ? <HigherLowerGame onBack={() => setPage('games')}/> : page === 'game-whot' ? <WhotGame onBack={() => setPage('games')}/> : <NotesPage/>}<footer><div className="shell">Made for Deborah <span>♥</span><small>One little website. A whole lot of love.</small></div></footer></AppErrorBoundary>
 }
