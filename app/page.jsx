@@ -13,9 +13,18 @@ const ranks = [
   { label: '10', value: 10 }, { label: 'J', value: 11 }, { label: 'Q', value: 12 }, { label: 'K', value: 13 }, { label: 'A', value: 14 },
 ]
 
-const drawCard = () => ({ ...ranks[Math.floor(Math.random() * ranks.length)], ...suits[Math.floor(Math.random() * suits.length)] })
+const deck = ranks.flatMap(rank => suits.map(suit => ({ ...rank, ...suit })))
+
+function dealCards() {
+  const firstIndex = Math.floor(Math.random() * deck.length)
+  const secondIndex = Math.floor(Math.random() * (deck.length - 1))
+  const adjustedSecondIndex = secondIndex >= firstIndex ? secondIndex + 1 : secondIndex
+
+  return { you: { ...deck[firstIndex] }, deborah: { ...deck[adjustedSecondIndex] } }
+}
+
 const INITIAL_STAKE = 100
-const newRound = score => ({ score, bet: INITIAL_STAKE, committed: { you: INITIAL_STAKE, deborah: INITIAL_STAKE }, cards: { you: drawCard(), deborah: drawCard() }, revealed: false, phase: 'betting', turn: 'deborah', roundResult: null, message: 'The opening stake is ₦100 each. Bluff, raise, accept, or fold.' })
+const newRound = score => ({ score, bet: INITIAL_STAKE, committed: { you: INITIAL_STAKE, deborah: INITIAL_STAKE }, cards: dealCards(), revealed: false, phase: 'betting', turn: 'deborah', roundResult: null, message: 'The opening stake is ₦100 each. Bluff, raise, accept, or fold.' })
 const newGame = () => newRound({ you: 0, deborah: 0 })
 
 const storage = {
@@ -287,7 +296,7 @@ function GamesPage() {
   const canAct = phase === 'betting' && actor === turn && (online.role === 'local' || online.status === 'connected')
   const amountToMatch = Math.max(0, bet - committed[actor])
   const balance = score.you - score.deborah
-  return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw. Highest card wins. Ace is high.</p></div>
+  return <main className="game-page shell"><div className="game-heading"><span className="section-kicker">DATE NIGHT ARCADE</span><h1>Higher or Lower</h1><p>One draw from a 52-card deck. Highest card wins. Ace is high.</p></div>
     <section className="online-panel">
       <div className="online-intro"><span><Users size={18}/> PLAY FROM ANYWHERE</span><p>Rooms work across different Wi-Fi and mobile networks and remain available for 24 hours.</p></div>
       {online.role === 'local' ? <div className="online-setup"><div className="player-picker" aria-label="Choose player"><button className={player === 'brume' ? 'selected' : ''} onClick={() => setPlayer('brume')}>I’m Brume</button><button className={player === 'deborah' ? 'selected' : ''} onClick={() => setPlayer('deborah')}>I’m Deborah</button></div>{savedRoom && <button className="return-room" onClick={returnToRoom}>{savedRoom.player === 'brume' ? 'Brume' : 'Deborah'} is returning to {savedRoom.code}</button>}<div className="room-actions"><button className="host-button" onClick={() => hostGame()} disabled={!player}><Link2 size={16}/> Start a room</button><span>or</span><div className="join-control"><input aria-label="Room code" value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())} onKeyDown={event => event.key === 'Enter' && joinGame()} placeholder="ROOM CODE" maxLength={6}/><button onClick={joinGame} disabled={!player}>Join</button></div></div></div> : <div className="room-status"><div><small>{online.status === 'connected' ? `${player.toUpperCase()} — GAME IS LIVE` : online.status === 'waiting' ? `WAITING FOR ${player === 'brume' ? 'DEBORAH' : 'BRUME'}` : online.status.toUpperCase()}</small><strong>{online.code}</strong></div>{online.status === 'waiting' && <button className="copy-code" onClick={() => { navigator.clipboard.writeText(online.code); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copied' : 'Copy code'}</button>}<button className="leave" onClick={leaveRoom}>Leave room</button></div>}
