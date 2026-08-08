@@ -47,28 +47,55 @@ function updateGame(game, action) {
 
 const nextPlayer = player => player === 'brume' ? 'deborah' : 'brume'
 
+function takeWhotCards(deck, pile, count) {
+  let nextDeck = [...deck]
+  let nextPile = [...pile]
+  const drawn = []
+  while (drawn.length < count) {
+    if (!nextDeck.length && nextPile.length > 1) {
+      nextDeck = nextPile.slice(0, -1).sort(() => Math.random() - 0.5)
+      nextPile = nextPile.slice(-1)
+    }
+    const card = nextDeck.pop()
+    if (!card) break
+    drawn.push(card)
+  }
+  return { deck: nextDeck, pile: nextPile, drawn }
+}
+
 function updateWhotGame(game, action) {
   if (action.type === 'RESET' && action.game?.hands && action.game?.pile) return action.game
   const player = action.player
   if (!['brume', 'deborah'].includes(player) || game.winner || player !== game.turn) return game
   if (action.type === 'WHOT_DRAW') {
-    let deck = [...game.deck]
-    let pile = [...game.pile]
-    if (!deck.length && pile.length > 1) { deck = pile.slice(0, -1); pile = pile.slice(-1) }
-    const card = deck.pop()
-    if (!card) return game
+    const result = takeWhotCards(game.deck, game.pile, game.pendingDraw || 1)
+    if (!result.drawn.length) return game
     const next = nextPlayer(player)
-    return { ...game, deck, pile, hands: { ...game.hands, [player]: [...game.hands[player], card] }, turn: next, message: `${player === 'brume' ? 'Brume' : 'Deborah'} drew a card. ${next === 'brume' ? 'Brume' : 'Deborah'} is up.`, motion: 'draw' }
+    const drawLabel = result.drawn.length === 1 ? 'a card' : `${result.drawn.length} cards`
+    return { ...game, deck: result.deck, pile: result.pile, hands: { ...game.hands, [player]: [...game.hands[player], ...result.drawn] }, turn: next, pendingDraw: 0, message: `${player === 'brume' ? 'Brume' : 'Deborah'} drew ${drawLabel}. ${next === 'brume' ? 'Brume' : 'Deborah'} is up.`, motion: 'draw' }
   }
   if (action.type !== 'WHOT_PLAY') return game
   const card = game.hands[player].find(item => item.id === action.cardId)
   const top = game.pile.at(-1)
-  const playable = card && (card.name === 'whot' || card.number === top.number || card.name === (game.calledShape || top.name))
+  const playable = card && ((game.pendingDraw || 0) > 0 ? card.number === 2 : card.name === 'whot' || card.number === top.number || card.name === (game.calledShape || top.name))
   if (!playable || (card.name === 'whot' && !['circle', 'triangle', 'cross', 'square', 'star'].includes(action.shape))) return game
   const hand = game.hands[player].filter(item => item.id !== card.id)
   const winner = hand.length === 0 ? player : ''
-  const next = nextPlayer(player)
-  return { ...game, hands: { ...game.hands, [player]: hand }, pile: [...game.pile, card], turn: winner ? player : next, calledShape: card.name === 'whot' ? action.shape : '', winner, message: winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : `${next === 'brume' ? 'Brume' : 'Deborah'}, your turn.`, motion: 'play' }
+  const holdsTurn = card.number === 1
+  const next = holdsTurn ? player : nextPlayer(player)
+  const pendingDraw = card.number === 2 ? (game.pendingDraw || 0) + 2 : 0
+  let deck = game.deck
+  let pile = [...game.pile, card]
+  let hands = { ...game.hands, [player]: hand }
+  let marketDrawn = 0
+  if (card.number === 14 && !winner) {
+    const market = takeWhotCards(deck, pile, 1)
+    deck = market.deck; pile = market.pile; marketDrawn = market.drawn.length
+    hands = { ...hands, [next]: [...hands[next], ...market.drawn] }
+  }
+  const nextName = next === 'brume' ? 'Brume' : 'Deborah'
+  const message = winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : holdsTurn ? `Hold on! ${nextName}, play again.` : pendingDraw ? `${nextName}, pick ${pendingDraw} or block with another 2.` : card.number === 14 ? `General Market! ${nextName} picked ${marketDrawn} card. ${nextName}, your turn.` : `${nextName}, your turn.`
+  return { ...game, deck, hands, pile, turn: winner ? player : next, calledShape: card.name === 'whot' ? action.shape : '', pendingDraw, winner, message, motion: 'play' }
 }
 
 const response = (body, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })

@@ -19,8 +19,26 @@ const whotShapes = [
   { name: 'cross', symbol: '✚', color: '#ad6d35' }, { name: 'square', symbol: '■', color: '#667b55' }, { name: 'star', symbol: '★', color: '#936785' },
 ]
 const makeWhotDeck = () => [...whotShapes.flatMap(shape => [1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 14].map(number => ({ ...shape, number, id: `${shape.name}-${number}-${Math.random()}` }))), ...Array.from({ length: 5 }, (_, index) => ({ name: 'whot', symbol: 'W', number: 20, color: '#803f45', id: `whot-${index}-${Math.random()}` }))]
-const canPlayWhot = (card, top, calledShape) => card.name === 'whot' || card.number === top.number || card.name === (calledShape || top.name)
+const canPlayWhot = (card, top, calledShape, pendingDraw = 0) => pendingDraw > 0
+  ? card.number === 2
+  : card.name === 'whot' || card.number === top.number || card.name === (calledShape || top.name)
 const whotCardLabel = card => card.name === 'whot' ? 'WHOT 20' : `${card.number} ${card.name}`
+
+function takeCards(deck, pile, count) {
+  let deckCards = [...deck]
+  let nextPile = [...pile]
+  const drawn = []
+  while (drawn.length < count) {
+    if (!deckCards.length && nextPile.length > 1) {
+      deckCards = shuffle(nextPile.slice(0, -1))
+      nextPile = nextPile.slice(-1)
+    }
+    const card = deckCards.pop()
+    if (!card) break
+    drawn.push(card)
+  }
+  return { deck: deckCards, pile: nextPile, drawn }
+}
 
 function WhotCard({ card, hidden = false, playable = false, onClick, entering = false }) {
   if (hidden) return <div className="whot-card whot-back" aria-label="Hidden Whot card"><Heart fill="currentColor"/></div>
@@ -29,7 +47,7 @@ function WhotCard({ card, hidden = false, playable = false, onClick, entering = 
 
 function createWhotGame() {
   const cards = shuffle(makeWhotDeck()); const top = cards.pop()
-  return { hands: { brume: cards.splice(0, 7), deborah: cards.splice(0, 7) }, pile: [top], deck: cards, turn: 'brume', calledShape: '', winner: '', message: "Brume, you're up. Match the shape or number.", motion: 'deal' }
+  return { hands: { brume: cards.splice(0, 5), deborah: cards.splice(0, 5) }, pile: [top], deck: cards, turn: 'brume', calledShape: '', pendingDraw: 0, winner: '', message: "Brume, you're up. Match the shape or number.", motion: 'deal' }
 }
 
 export default function WhotGame() {
@@ -44,12 +62,26 @@ export default function WhotGame() {
     setGame(current => {
       const hand = current.hands[player].filter(item => item.id !== card.id)
       const winner = hand.length === 0 ? player : ''
-      return { ...current, hands: { ...current.hands, [player]: hand }, pile: [...current.pile, card], turn: winner ? player : nextPlayer(player), calledShape: card.name === 'whot' ? shape : '', winner, message: winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : `${nextPlayer(player) === 'brume' ? 'Brume' : 'Deborah'}, your turn.`, motion: 'play' }
+      const holdsTurn = card.number === 1
+      const next = holdsTurn ? player : nextPlayer(player)
+      const pendingDraw = card.number === 2 ? (current.pendingDraw || 0) + 2 : 0
+      let deck = current.deck
+      let pile = [...current.pile, card]
+      let hands = { ...current.hands, [player]: hand }
+      let marketDrawn = 0
+      if (card.number === 14 && !winner) {
+        const market = takeCards(deck, pile, 1)
+        deck = market.deck; pile = market.pile; marketDrawn = market.drawn.length
+        hands = { ...hands, [next]: [...hands[next], ...market.drawn] }
+      }
+      const nextName = next === 'brume' ? 'Brume' : 'Deborah'
+      const message = winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : holdsTurn ? `Hold on! ${nextName}, play again.` : pendingDraw ? `${nextName}, pick ${pendingDraw} or block with another 2.` : card.number === 14 ? `General Market! ${nextName} picked ${marketDrawn} card. ${nextName}, your turn.` : `${nextName}, your turn.`
+      return { ...current, deck, hands, pile, turn: winner ? player : next, calledShape: card.name === 'whot' ? shape : '', pendingDraw, winner, message, motion: 'play' }
     })
     setMotionCard(card.id); setTimeout(() => setMotionCard(null), 500)
   }
   const play = (player, card) => {
-    if (game.winner || player !== game.turn || !canPlayWhot(card, top, game.calledShape)) return
+    if (game.winner || player !== game.turn || !canPlayWhot(card, top, game.calledShape, game.pendingDraw)) return
     if (card.name === 'whot') { setChoosing({ player, card }); return }
     finishPlay(player, card)
   }
@@ -57,13 +89,12 @@ export default function WhotGame() {
     if (game.winner || player !== game.turn) return
     if (await room.dispatch({ type: 'WHOT_DRAW', player })) return
     setGame(current => {
-      let deckCards = [...current.deck]
-      let pile = current.pile
-      if (!deckCards.length && pile.length > 1) { deckCards = shuffle(pile.slice(0, -1)); pile = pile.slice(-1) }
-      const card = deckCards.pop()
-      if (!card) return current
+      const drawCount = current.pendingDraw || 1
+      const result = takeCards(current.deck, current.pile, drawCount)
+      if (!result.drawn.length) return current
       const next = nextPlayer(player)
-      return { ...current, deck: deckCards, pile, hands: { ...current.hands, [player]: [...current.hands[player], card] }, turn: next, message: `${player === 'brume' ? 'Brume' : 'Deborah'} drew a card. ${next === 'brume' ? 'Brume' : 'Deborah'} is up.`, motion: 'draw' }
+      const drawLabel = result.drawn.length === 1 ? 'a card' : `${result.drawn.length} cards`
+      return { ...current, deck: result.deck, pile: result.pile, hands: { ...current.hands, [player]: [...current.hands[player], ...result.drawn] }, turn: next, pendingDraw: 0, message: `${player === 'brume' ? 'Brume' : 'Deborah'} drew ${drawLabel}. ${next === 'brume' ? 'Brume' : 'Deborah'} is up.`, motion: 'draw' }
     })
   }
   const activePlayer = room.online.role === 'local' ? game.turn : room.player
@@ -76,12 +107,12 @@ export default function WhotGame() {
     </section>
     <section className={`whot-table motion-${game.motion}`}>
       <div className="whot-status"><span className={game.turn === 'deborah' ? 'active' : ''}>DEBORAH · {game.hands.deborah.length} CARDS</span><strong>{game.winner ? <><Trophy size={18}/> {game.message}</> : game.message}</strong><span className={game.turn === 'brume' ? 'active' : ''}>BRUME · {game.hands.brume.length} CARDS</span></div>
-      <div className="whot-hand opponent" aria-label="Deborah's hand">{game.hands.deborah.map(card => <WhotCard key={card.id} card={card} hidden={room.online.role !== 'local' && room.player !== 'deborah'} playable={canAct && activePlayer === 'deborah' && game.turn === 'deborah' && canPlayWhot(card, top, game.calledShape)} onClick={canAct && activePlayer === 'deborah' && game.turn === 'deborah' ? () => play('deborah', card) : undefined}/>)}</div>
-      <div className="whot-center"><button className="draw-pile" onClick={() => draw(activePlayer)} disabled={!!game.winner}><span>{game.deck.length}</span><small>DRAW</small></button><div className="discard"><WhotCard card={top} entering={motionCard === top.id}/>{game.calledShape && <span className="called-shape">Called: {whotShapes.find(shape => shape.name === game.calledShape)?.symbol} {game.calledShape}</span>}</div></div>
-      <div className="whot-hand" aria-label="Brume's hand">{game.hands.brume.map(card => <WhotCard key={card.id} card={card} hidden={room.online.role !== 'local' && room.player !== 'brume'} playable={canAct && activePlayer === 'brume' && game.turn === 'brume' && canPlayWhot(card, top, game.calledShape)} onClick={canAct && activePlayer === 'brume' && game.turn === 'brume' ? () => play('brume', card) : undefined}/>)}</div>
+      <div className="whot-hand opponent" aria-label="Deborah's hand">{game.hands.deborah.map(card => <WhotCard key={card.id} card={card} hidden={room.online.role !== 'local' && room.player !== 'deborah'} playable={canAct && activePlayer === 'deborah' && game.turn === 'deborah' && canPlayWhot(card, top, game.calledShape, game.pendingDraw)} onClick={canAct && activePlayer === 'deborah' && game.turn === 'deborah' ? () => play('deborah', card) : undefined}/>)}</div>
+      <div className="whot-center"><button className="draw-pile" onClick={() => draw(activePlayer)} disabled={!!game.winner || !canAct || activePlayer !== game.turn}><span>{game.pendingDraw || game.deck.length}</span><small>{game.pendingDraw ? `PICK ${game.pendingDraw}` : 'DRAW'}</small></button><div className="discard"><WhotCard card={top} entering={motionCard === top.id}/>{game.calledShape && <span className="called-shape">Called: {whotShapes.find(shape => shape.name === game.calledShape)?.symbol} {game.calledShape}</span>}</div></div>
+      <div className="whot-hand" aria-label="Brume's hand">{game.hands.brume.map(card => <WhotCard key={card.id} card={card} hidden={room.online.role !== 'local' && room.player !== 'brume'} playable={canAct && activePlayer === 'brume' && game.turn === 'brume' && canPlayWhot(card, top, game.calledShape, game.pendingDraw)} onClick={canAct && activePlayer === 'brume' && game.turn === 'brume' ? () => play('brume', card) : undefined}/>)}</div>
       {game.winner && <button className="primary whot-again" onClick={async () => { const next = createWhotGame(); if (!(await room.dispatch({ type: 'RESET', game: next }))) setGame(next); setChoosing(null) }}><RotateCcw size={16}/> Play again</button>}
     </section>
     {choosing && <div className="modal-backdrop"><div className="shape-modal" role="dialog" aria-modal="true"><Sparkles/><h2>Call a shape</h2><p>What must the next player match?</p><div>{whotShapes.map(shape => <button key={shape.name} style={{ '--shape-color': shape.color }} onClick={() => { finishPlay(choosing.player, choosing.card, shape.name); setChoosing(null) }}><span>{shape.symbol}</span>{shape.name}</button>)}</div></div></div>}
-    <aside className="whot-rules"><strong>QUICK RULES</strong><span>Match shape</span><i>or</i><span>Match number</span><i>or</i><span>Play WHOT</span></aside>
+    <aside className="whot-rules"><strong>QUICK RULES</strong><span>1 · Hold on</span><i>•</i><span>2 · Pick two / block</span><i>•</i><span>14 · General Market</span><i>•</i><span>20 · Call a shape</span></aside>
   </main>
 }
