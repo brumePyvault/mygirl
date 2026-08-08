@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { NextResponse } from 'next/server'
+import { sendNoteNotification } from '../../../lib/push-notifications'
 
 const noteSchema = new mongoose.Schema({
   author: { type: String, trim: true, maxlength: 40, default: 'Your love' },
@@ -45,6 +46,7 @@ export async function POST(request) {
     await connect()
     const body = await request.json()
     const note = await Note.create({ author: body?.author, recipient: body?.recipient, message: body?.message })
+    await sendNoteNotification(note).catch(error => console.error('Push notification failed:', error))
     return NextResponse.json({ note }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return errorResponse(error)
