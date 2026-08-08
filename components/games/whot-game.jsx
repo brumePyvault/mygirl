@@ -47,7 +47,7 @@ function WhotCard({ card, hidden = false, playable = false, onClick, entering = 
 
 function createWhotGame() {
   const cards = shuffle(makeWhotDeck()); const top = cards.pop()
-  return { hands: { brume: cards.splice(0, 7), deborah: cards.splice(0, 7) }, pile: [top], deck: cards, turn: 'brume', calledShape: '', pendingDraw: 0, winner: '', message: "Brume, you're up. Match the shape or number.", motion: 'deal' }
+  return { hands: { brume: cards.splice(0, 5), deborah: cards.splice(0, 5) }, pile: [top], deck: cards, turn: 'brume', calledShape: '', pendingDraw: 0, winner: '', message: "Brume, you're up. Match the shape or number.", motion: 'deal' }
 }
 
 export default function WhotGame() {
@@ -62,7 +62,8 @@ export default function WhotGame() {
     setGame(current => {
       const hand = current.hands[player].filter(item => item.id !== card.id)
       const winner = hand.length === 0 ? player : ''
-      const next = nextPlayer(player)
+      const holdsTurn = card.number === 1
+      const next = holdsTurn ? player : nextPlayer(player)
       const pendingDraw = card.number === 2 ? (current.pendingDraw || 0) + 2 : 0
       let deck = current.deck
       let pile = [...current.pile, card]
@@ -74,7 +75,7 @@ export default function WhotGame() {
         hands = { ...hands, [next]: [...hands[next], ...market.drawn] }
       }
       const nextName = next === 'brume' ? 'Brume' : 'Deborah'
-      const message = winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : pendingDraw ? `${nextName}, pick ${pendingDraw} or block with another 2.` : card.number === 14 ? `General Market! ${nextName} picked ${marketDrawn} card. ${nextName}, your turn.` : `${nextName}, your turn.`
+      const message = winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : holdsTurn ? `Hold on! ${nextName}, play again.` : pendingDraw ? `${nextName}, pick ${pendingDraw} or block with another 2.` : card.number === 14 ? `General Market! ${nextName} picked ${marketDrawn} card. ${nextName}, your turn.` : `${nextName}, your turn.`
       return { ...current, deck, hands, pile, turn: winner ? player : next, calledShape: card.name === 'whot' ? shape : '', pendingDraw, winner, message, motion: 'play' }
     })
     setMotionCard(card.id); setTimeout(() => setMotionCard(null), 500)
@@ -112,6 +113,6 @@ export default function WhotGame() {
       {game.winner && <button className="primary whot-again" onClick={async () => { const next = createWhotGame(); if (!(await room.dispatch({ type: 'RESET', game: next }))) setGame(next); setChoosing(null) }}><RotateCcw size={16}/> Play again</button>}
     </section>
     {choosing && <div className="modal-backdrop"><div className="shape-modal" role="dialog" aria-modal="true"><Sparkles/><h2>Call a shape</h2><p>What must the next player match?</p><div>{whotShapes.map(shape => <button key={shape.name} style={{ '--shape-color': shape.color }} onClick={() => { finishPlay(choosing.player, choosing.card, shape.name); setChoosing(null) }}><span>{shape.symbol}</span>{shape.name}</button>)}</div></div></div>}
-    <aside className="whot-rules"><strong>QUICK RULES</strong><span>2 · Pick two / block</span><i>•</i><span>14 · General Market</span><i>•</i><span>20 · Call a shape</span></aside>
+    <aside className="whot-rules"><strong>QUICK RULES</strong><span>1 · Hold on</span><i>•</i><span>2 · Pick two / block</span><i>•</i><span>14 · General Market</span><i>•</i><span>20 · Call a shape</span></aside>
   </main>
 }

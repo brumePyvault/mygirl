@@ -81,7 +81,8 @@ function updateWhotGame(game, action) {
   if (!playable || (card.name === 'whot' && !['circle', 'triangle', 'cross', 'square', 'star'].includes(action.shape))) return game
   const hand = game.hands[player].filter(item => item.id !== card.id)
   const winner = hand.length === 0 ? player : ''
-  const next = nextPlayer(player)
+  const holdsTurn = card.number === 1
+  const next = holdsTurn ? player : nextPlayer(player)
   const pendingDraw = card.number === 2 ? (game.pendingDraw || 0) + 2 : 0
   let deck = game.deck
   let pile = [...game.pile, card]
@@ -93,7 +94,7 @@ function updateWhotGame(game, action) {
     hands = { ...hands, [next]: [...hands[next], ...market.drawn] }
   }
   const nextName = next === 'brume' ? 'Brume' : 'Deborah'
-  const message = winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : pendingDraw ? `${nextName}, pick ${pendingDraw} or block with another 2.` : card.number === 14 ? `General Market! ${nextName} picked ${marketDrawn} card. ${nextName}, your turn.` : `${nextName}, your turn.`
+  const message = winner ? `${player === 'brume' ? 'Brume' : 'Deborah'} wins the round!` : holdsTurn ? `Hold on! ${nextName}, play again.` : pendingDraw ? `${nextName}, pick ${pendingDraw} or block with another 2.` : card.number === 14 ? `General Market! ${nextName} picked ${marketDrawn} card. ${nextName}, your turn.` : `${nextName}, your turn.`
   return { ...game, deck, hands, pile, turn: winner ? player : next, calledShape: card.name === 'whot' ? action.shape : '', pendingDraw, winner, message, motion: 'play' }
 }
 
