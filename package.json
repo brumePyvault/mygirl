@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "generate:vapid": "web-push generate-vapid-keys --json",
     "start": "next start",
     "lint": "eslint ."
   },
