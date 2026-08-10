@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 import { NextResponse } from 'next/server'
-import { PushSubscription } from '../../../lib/push-notifications'
+import { getVapidConfiguration, PushSubscription } from '../../../lib/push-notifications'
 
 async function connect() {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not configured')
@@ -8,11 +8,19 @@ async function connect() {
 }
 
 export async function GET() {
-  return NextResponse.json({ publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '' })
+  const vapid = getVapidConfiguration()
+  return NextResponse.json(
+    vapid.configured
+      ? { configured: true, publicKey: vapid.publicKey }
+      : { configured: false, error: vapid.error },
+    { status: vapid.configured ? 200 : 503 },
+  )
 }
 
 export async function POST(request) {
   try {
+    const vapid = getVapidConfiguration()
+    if (!vapid.configured) return NextResponse.json({ error: vapid.error }, { status: 503 })
     await connect()
     const { subscription, recipient } = await request.json()
     if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth || !['brume', 'deborah'].includes(recipient)) {

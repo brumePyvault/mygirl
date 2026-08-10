@@ -45,8 +45,12 @@ function NotificationControl() {
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') { setStatus('denied'); return }
       const registration = await navigator.serviceWorker.ready
-      const { publicKey } = await (await fetch('/api/push')).json()
-      if (!publicKey) throw new Error('Notifications are not configured yet.')
+      const configurationResponse = await fetch('/api/push')
+      const configuration = await configurationResponse.json()
+      if (!configurationResponse.ok || !configuration.publicKey) {
+        throw new Error(configuration.error || 'Notifications are not configured yet.')
+      }
+      const { publicKey } = configuration
       const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) })
       const response = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: subscription.toJSON(), recipient }) })
       if (!response.ok) throw new Error('Could not save your preference.')
